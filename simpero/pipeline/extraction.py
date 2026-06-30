@@ -32,7 +32,12 @@ Return ONLY a JSON array. Each element:
 {
   "entity": "the company/person/market the claim is about, verbatim",
   "claim_type": one of [market_size, revenue, team_background,
-                competitive_positioning, funding_history, customer_metrics, other],
+                competitive_positioning, funding_history, customer_metrics,
+                net_irr, tvpi, dpi, fund_size, vintage_year, gp_commitment, other],
+  // Fund-document hints: net_irr = a fund/track-record IRR (e.g. "18.5%");
+  // tvpi/dpi = investment multiples (e.g. "1.8x"); fund_size = target/committed
+  // size (e.g. "$750M"); vintage_year = a 4-digit year; gp_commitment = the GP's
+  // commitment (percent or currency). Use these for PE fund PPMs.
   "claim_subtype_raw": "short free-text label; REQUIRED when claim_type is
                         'other', optional otherwise (e.g. 'ARR', 'GMV')",
   "claim_value": "the value exactly as written, e.g. '$5M', '15% MoM', '12 people'",

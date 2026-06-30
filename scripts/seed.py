@@ -39,7 +39,9 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 logger = logging.getLogger("seed")
 
 SAMPLE_PDF = "data/sample_pitch_deck.pdf"
-SAMPLE_MANDATE = "data/sample_mandate.yaml"
+# Mandate path is overridable via SIMPERO_MANDATE so a fund PPM can be scored
+# against the secondaries mandate instead of the operating-company one.
+SAMPLE_MANDATE = os.environ.get("SIMPERO_MANDATE", "data/sample_mandate.yaml")
 
 
 def main(pdf_path: str = SAMPLE_PDF, deal_name: str = "NorthStar Logistics") -> None:

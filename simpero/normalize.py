@@ -56,8 +56,25 @@ _CURRENCY_CODES: frozenset[str] = frozenset(
 
 #: Claim types whose values are inherently quantitative currency amounts.
 _CURRENCY_CLAIM_TYPES: frozenset[ClaimType] = frozenset(
-    {ClaimType.MARKET_SIZE, ClaimType.REVENUE, ClaimType.FUNDING_HISTORY}
+    {
+        ClaimType.MARKET_SIZE,
+        ClaimType.REVENUE,
+        ClaimType.FUNDING_HISTORY,
+        ClaimType.FUND_SIZE,
+    }
 )
+
+#: Claim types expressed as a percentage even without an explicit '%'
+#: (e.g. "net IRR of 18.5").
+_PERCENT_CLAIM_TYPES: frozenset[ClaimType] = frozenset({ClaimType.NET_IRR})
+
+#: Claim types expressed as an investment multiple (e.g. TVPI/DPI of 1.8x).
+_MULTIPLE_CLAIM_TYPES: frozenset[ClaimType] = frozenset(
+    {ClaimType.TVPI, ClaimType.DPI}
+)
+
+#: Matches an investment-multiple value such as "1.8x" or "2.0×".
+_MULTIPLE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*[x×]", re.IGNORECASE)
 
 #: Claim types whose values are categorical text, not numbers. Note
 #: TEAM_BACKGROUND is intentionally NOT here: "team of 14" must normalize to a
@@ -250,6 +267,60 @@ def normalize_count(raw: str) -> NormalizedValue:
     )
 
 
+def normalize_multiple(raw: str) -> NormalizedValue:
+    """Normalize an investment multiple (e.g. TVPI/DPI "1.8x"), unit ``multiple``.
+
+    Accepts an explicit ``x``/``×`` suffix or a bare number (already a multiple).
+
+    Examples:
+        ``"1.8x"`` -> ``1.8 multiple``
+        ``"2.0×"`` -> ``2.0 multiple``
+        ``"1.5"`` -> ``1.5 multiple``
+
+    Args:
+        raw: The original multiple value text.
+
+    Returns:
+        A :class:`NormalizedValue`. ``UNPARSEABLE`` if no number can be found.
+    """
+    match = _MULTIPLE_RE.search(raw)
+    if match is not None:
+        return NormalizedValue(
+            numeric=float(match.group(1)),
+            unit="multiple",
+            status=NormalizationStatus.NORMALIZED,
+        )
+    number, _ = _find_number_and_rest(raw)
+    if number is None:
+        return NormalizedValue(status=NormalizationStatus.UNPARSEABLE)
+    return NormalizedValue(
+        numeric=number, unit="multiple", status=NormalizationStatus.NORMALIZED
+    )
+
+
+def normalize_year(raw: str) -> NormalizedValue:
+    """Normalize a vintage/calendar year to an integer-valued number, unit ``year``.
+
+    Examples:
+        ``"2018"`` -> ``2018 year``
+        ``"vintage 2015"`` -> ``2015 year``
+
+    Args:
+        raw: The original year value text.
+
+    Returns:
+        A :class:`NormalizedValue`. ``UNPARSEABLE`` if no 4-digit year is found.
+    """
+    match = re.search(r"(19|20)\d{2}", raw)
+    if match is None:
+        return NormalizedValue(status=NormalizationStatus.UNPARSEABLE)
+    return NormalizedValue(
+        numeric=float(match.group(0)),
+        unit="year",
+        status=NormalizationStatus.NORMALIZED,
+    )
+
+
 def _canonical_text(raw: str) -> str:
     """Collapse a categorical value to a stable comparison key.
 
@@ -274,13 +345,14 @@ def normalize_claim_value(raw_value: str, claim_type: ClaimType) -> NormalizedVa
     Routing logic, in order of precedence:
 
     1. Empty/blank value -> ``NOT_APPLICABLE``.
-    2. Categorical claim types (team, competitive positioning) -> canonical
-       text form.
-    3. An explicit ``%`` anywhere -> percentage.
-    4. A currency claim type or a currency indicator ($, €, £, ISO code) ->
+    2. Categorical claim types (competitive positioning) -> canonical text form.
+    3. Multiple claim types (TVPI/DPI) or an explicit ``Nx`` value -> multiple.
+    4. Vintage-year claim type -> year.
+    5. An explicit ``%`` anywhere, or a percent claim type (net IRR) -> percentage.
+    6. A currency claim type or a currency indicator ($, €, £, ISO code) ->
        currency.
-    5. Any remaining value containing a number -> count.
-    6. Otherwise (free text, no number) -> canonical text form.
+    7. Any remaining value containing a number -> count.
+    8. Otherwise (free text, no number) -> canonical text form.
 
     This is intentionally driven by both ``claim_type`` and value content: the
     claim type sets expectation (a REVENUE claim should be money), while content
@@ -304,7 +376,13 @@ def normalize_claim_value(raw_value: str, claim_type: ClaimType) -> NormalizedVa
             status=NormalizationStatus.NORMALIZED,
         )
 
-    if "%" in raw_value:
+    if claim_type in _MULTIPLE_CLAIM_TYPES or _MULTIPLE_RE.search(raw_value):
+        return normalize_multiple(raw_value)
+
+    if claim_type is ClaimType.VINTAGE_YEAR:
+        return normalize_year(raw_value)
+
+    if "%" in raw_value or claim_type in _PERCENT_CLAIM_TYPES:
         return normalize_percentage(raw_value)
 
     if claim_type in _CURRENCY_CLAIM_TYPES or _detect_currency_unit(raw_value):

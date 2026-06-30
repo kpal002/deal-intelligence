@@ -50,6 +50,16 @@ class ClaimType(str, Enum):
     COMPETITIVE_POSITIONING = "competitive_positioning"
     FUNDING_HISTORY = "funding_history"
     CUSTOMER_METRICS = "customer_metrics"
+    # --- Fund-level claim types (e.g. a PE fund PPM, not an operating company) ---
+    # Added so fund documents extract into typed claims that scoring can match,
+    # rather than collapsing into OTHER. Mirrors how the ontology would grow per
+    # document family in production.
+    NET_IRR = "net_irr"  # fund/track-record net internal rate of return (percent)
+    TVPI = "tvpi"  # total value to paid-in (a multiple, e.g. 1.8x)
+    DPI = "dpi"  # distributions to paid-in (a multiple)
+    FUND_SIZE = "fund_size"  # target/committed fund size (currency)
+    VINTAGE_YEAR = "vintage_year"  # fund vintage (a year)
+    GP_COMMITMENT = "gp_commitment"  # GP commitment (percent or currency)
     OTHER = "other"
 
 

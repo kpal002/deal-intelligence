@@ -1,0 +1,69 @@
+# Example mandate for a PE *fund* (secondaries) PPM — demonstrates that the
+# scoring engine is generic across document families once the ontology covers
+# the relevant claim types. Pair with a fund PPM, e.g.:
+#   python scripts/seed.py data/sample_ppm.pdf "Secondaries Fund III"
+#
+# Thesis (Harborline Secondaries): back established secondaries managers with a
+# strong net track record, meaningful fund size, recent vintage, and GP alignment.
+
+mandate_id: "8f1d3b2a-0000-4000-8000-000000000002"
+fund_name: "Harborline Secondaries"
+mandate_version: 1
+description: >
+  Secondaries fund thesis: net IRR >= 15%, TVPI >= 1.5x, fund size >= $500M,
+  vintage 2015 or later, with a GP commitment of at least 2%.
+geography: ["Global"]
+sectors: ["Private Equity Secondaries"]
+min_check_size_usd: 10000000
+max_check_size_usd: 100000000
+
+criteria:
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000020"
+    name: "Net IRR floor"
+    description: "Track-record net IRR must be at least 15%."
+    claim_type: "net_irr"
+    operator: "gte"
+    threshold: 15
+    threshold_unit: "percent"
+    weight: 0.30
+    is_knockout: true   # below the IRR floor, the fund is out
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000021"
+    name: "TVPI floor"
+    description: "Total value to paid-in must be at least 1.5x."
+    claim_type: "tvpi"
+    operator: "gte"
+    threshold: 1.5
+    threshold_unit: "multiple"
+    weight: 0.25
+    is_knockout: false
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000022"
+    name: "Fund size"
+    description: "Committed/target fund size should be at least $500M."
+    claim_type: "fund_size"
+    operator: "gte"
+    threshold: 500000000
+    threshold_unit: "USD"
+    weight: 0.20
+    is_knockout: false
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000023"
+    name: "Recent vintage"
+    description: "Fund vintage should be 2015 or later."
+    claim_type: "vintage_year"
+    operator: "gte"
+    threshold: 2015
+    threshold_unit: "year"
+    weight: 0.15
+    is_knockout: false
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000024"
+    name: "GP commitment"
+    description: "GP should commit at least 2% of the fund."
+    claim_type: "gp_commitment"
+    operator: "gte"
+    threshold: 2
+    threshold_unit: "percent"
+    weight: 0.10
+    is_knockout: false

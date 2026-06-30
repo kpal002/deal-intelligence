@@ -13,7 +13,9 @@ from simpero.normalize import (
     normalize_claim_value,
     normalize_count,
     normalize_currency,
+    normalize_multiple,
     normalize_percentage,
+    normalize_year,
 )
 
 # --- Currency -------------------------------------------------------------
@@ -104,6 +106,66 @@ def test_normalize_count_values(raw, expected):
     assert result.status is NormalizationStatus.NORMALIZED
     assert result.numeric == pytest.approx(expected)
     assert result.unit == "count"
+
+
+# --- Fund-metric normalizers (multiple / year) ----------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("1.8x", 1.8), ("2.0×", 2.0), ("1.5", 1.5), ("3.2x net", 3.2)],
+)
+def test_normalize_multiple_values(raw, expected):
+    """Investment multiples parse to a number with unit 'multiple'."""
+    result = normalize_multiple(raw)
+    assert result.status is NormalizationStatus.NORMALIZED
+    assert result.numeric == pytest.approx(expected)
+    assert result.unit == "multiple"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("2018", 2018.0), ("vintage 2015", 2015.0), ("Fund of 2021 vintage", 2021.0)],
+)
+def test_normalize_year_values(raw, expected):
+    """Vintage years parse to the 4-digit year with unit 'year'."""
+    result = normalize_year(raw)
+    assert result.status is NormalizationStatus.NORMALIZED
+    assert result.numeric == pytest.approx(expected)
+    assert result.unit == "year"
+
+
+def test_normalize_year_unparseable():
+    """Text with no 4-digit year is UNPARSEABLE."""
+    assert normalize_year("recent vintage").status is NormalizationStatus.UNPARSEABLE
+
+
+def test_dispatch_net_irr_routes_to_percent_without_symbol():
+    """A net_irr claim is treated as a percentage even without a '%'."""
+    result = normalize_claim_value("18.5", ClaimType.NET_IRR)
+    assert result.unit == "percent"
+    assert result.numeric == pytest.approx(18.5)
+
+
+def test_dispatch_tvpi_routes_to_multiple():
+    """A TVPI claim routes to the multiple parser."""
+    result = normalize_claim_value("1.8x", ClaimType.TVPI)
+    assert result.unit == "multiple"
+    assert result.numeric == pytest.approx(1.8)
+
+
+def test_dispatch_fund_size_routes_to_currency():
+    """A fund_size claim is treated as currency."""
+    result = normalize_claim_value("$750M", ClaimType.FUND_SIZE)
+    assert result.unit == "USD"
+    assert result.numeric == pytest.approx(750_000_000.0)
+
+
+def test_dispatch_vintage_year_routes_to_year():
+    """A vintage_year claim routes to the year parser."""
+    result = normalize_claim_value("2018", ClaimType.VINTAGE_YEAR)
+    assert result.unit == "year"
+    assert result.numeric == pytest.approx(2018.0)
 
 
 # --- Dispatcher routing ---------------------------------------------------
