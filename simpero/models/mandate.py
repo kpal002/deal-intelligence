@@ -72,6 +72,15 @@ class MandateCriterion(BaseModel):
     name: str
     description: str
     claim_type: ClaimType
+    claim_subtype: str | None = Field(
+        default=None,
+        description=(
+            "Optional sub-scope filter. When set, only facts whose "
+            "claim_subtype_raw contains this value (case-insensitive) are "
+            "considered — e.g. a net-IRR criterion can require 'fund' so a "
+            "single hot deal's IRR does not satisfy a fund-level threshold."
+        ),
+    )
     operator: MandateOperator
     threshold: Any
     threshold_unit: str | None = None

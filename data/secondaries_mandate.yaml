@@ -20,8 +20,9 @@ max_check_size_usd: 100000000
 criteria:
   - criterion_id: "8f1d3b2a-0000-4000-8000-000000000020"
     name: "Net IRR floor"
-    description: "Track-record net IRR must be at least 15%."
+    description: "Fund-level track-record net IRR must be at least 15%."
     claim_type: "net_irr"
+    claim_subtype: "fund"   # exclude individual deal IRRs (a hot deal != fund IRR)
     operator: "gte"
     threshold: 15
     threshold_unit: "percent"
@@ -30,8 +31,9 @@ criteria:
 
   - criterion_id: "8f1d3b2a-0000-4000-8000-000000000021"
     name: "TVPI floor"
-    description: "Total value to paid-in must be at least 1.5x."
+    description: "Fund-level total value to paid-in must be at least 1.5x."
     claim_type: "tvpi"
+    claim_subtype: "fund"   # fund-level TVPI, not a single deal's
     operator: "gte"
     threshold: 1.5
     threshold_unit: "multiple"

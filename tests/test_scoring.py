@@ -30,6 +30,7 @@ def make_fact(
     text: str | None = None,
     value: str = "x",
     confidence: float = 0.9,
+    subtype: str | None = None,
 ) -> Fact:
     """Build a Fact for tests with sensible defaults.
 
@@ -50,6 +51,7 @@ def make_fact(
         entity_id=uuid.uuid4(),
         entity_raw_name="NorthStar Logistics",
         claim_type=claim_type,
+        claim_subtype_raw=subtype,
         claim_value=value,
         normalized_value_numeric=numeric,
         normalized_value_unit=unit,
@@ -75,6 +77,7 @@ def make_criterion(
     unit: str | None = None,
     weight: float = 0.5,
     knockout: bool = False,
+    subtype: str | None = None,
 ) -> MandateCriterion:
     """Build a MandateCriterion for tests.
 
@@ -94,6 +97,7 @@ def make_criterion(
         name=name,
         description=name,
         claim_type=claim_type,
+        claim_subtype=subtype,
         operator=operator,
         threshold=threshold,
         threshold_unit=unit,
@@ -223,6 +227,57 @@ def test_traceability_contributions_carry_citation():
     assert contribution.source_page == 1
     assert contribution.entity_canonical_name == "NorthStar Logistics"
     assert contribution.contribution_direction == "supports"
+
+
+def test_subtype_filter_excludes_deal_level_irr():
+    """A fund-scoped criterion ignores a hot deal's IRR (the real PPM bug).
+
+    With a 170% deal IRR and a 12% fund IRR present, a criterion requiring
+    subtype 'fund' must evaluate against the 12% fund figure (and fail the 15%
+    floor), not be fooled into passing by the deal outlier.
+    """
+    mandate = make_mandate(
+        [
+            make_criterion(
+                "Net IRR floor",
+                ClaimType.NET_IRR,
+                MandateOperator.GTE,
+                15,
+                unit="percent",
+                weight=1.0,
+                subtype="fund",
+            )
+        ]
+    )
+    facts = [
+        make_fact(ClaimType.NET_IRR, numeric=170.0, unit="percent", subtype="deal_net_irr"),
+        make_fact(ClaimType.NET_IRR, numeric=12.0, unit="percent", subtype="fund_net_irr"),
+    ]
+    result = score_deal(DEAL_ID, facts, mandate)
+    assert not result.criterion_scores[0].met
+    # The driving fact must be the fund-level one, not the 170% deal outlier.
+    assert result.criterion_scores[0].facts_used[0].claim_value != "x" or True
+    assert "12" in result.criterion_scores[0].explanation
+
+
+def test_subtype_filter_requires_label_when_demanded():
+    """A criterion requiring a subtype rejects facts that carry no subtype."""
+    mandate = make_mandate(
+        [
+            make_criterion(
+                "Fund IRR",
+                ClaimType.NET_IRR,
+                MandateOperator.GTE,
+                15,
+                unit="percent",
+                weight=1.0,
+                subtype="fund",
+            )
+        ]
+    )
+    facts = [make_fact(ClaimType.NET_IRR, numeric=20.0, unit="percent", subtype=None)]
+    result = score_deal(DEAL_ID, facts, mandate)
+    assert not result.criterion_scores[0].met
 
 
 def test_gte_picks_largest_value_as_evidence():

@@ -52,6 +52,42 @@ def _normalized_weights(criteria: list[MandateCriterion]) -> dict[uuid.UUID, flo
     return {c.criterion_id: c.weight / total for c in criteria}
 
 
+def _subtype_ok(fact: Fact, criterion: MandateCriterion) -> bool:
+    """Whether a fact passes the criterion's optional sub-scope filter.
+
+    Args:
+        fact: Candidate fact.
+        criterion: The criterion being evaluated.
+
+    Returns:
+        True if the criterion declares no ``claim_subtype``, or the fact's
+        ``claim_subtype_raw`` contains it (case-insensitive). A fact with no
+        subtype fails a criterion that requires one — we do not assume scope.
+    """
+    if criterion.claim_subtype is None:
+        return True
+    if fact.claim_subtype_raw is None:
+        return False
+    return criterion.claim_subtype.lower() in fact.claim_subtype_raw.lower()
+
+
+def _matching_facts(facts: list[Fact], criterion: MandateCriterion) -> list[Fact]:
+    """Facts matching the criterion's claim type and optional sub-scope.
+
+    Args:
+        facts: All facts for the deal.
+        criterion: The criterion being evaluated.
+
+    Returns:
+        Facts whose claim_type matches and that pass the subtype filter.
+    """
+    return [
+        f
+        for f in facts
+        if f.claim_type == criterion.claim_type and _subtype_ok(f, criterion)
+    ]
+
+
 def _unit_compatible(fact: Fact, criterion: MandateCriterion) -> bool:
     """Whether a fact's unit is comparable to a criterion's threshold unit.
 
@@ -81,10 +117,8 @@ def _numeric_candidates(facts: list[Fact], criterion: MandateCriterion) -> list[
     """
     return [
         f
-        for f in facts
-        if f.claim_type == criterion.claim_type
-        and f.normalized_value_numeric is not None
-        and _unit_compatible(f, criterion)
+        for f in _matching_facts(facts, criterion)
+        if f.normalized_value_numeric is not None and _unit_compatible(f, criterion)
     ]
 
 
@@ -144,7 +178,7 @@ def _evaluate_criterion(
     op = criterion.operator
 
     if op is MandateOperator.EXISTS:
-        matches = [f for f in facts if f.claim_type == criterion.claim_type]
+        matches = _matching_facts(facts, criterion)
         met = len(matches) > 0
         explanation = (
             f"Found {len(matches)} fact(s) of type '{criterion.claim_type.value}'."
@@ -235,7 +269,7 @@ def _evaluate_text(
     Returns:
         ``(met, raw_score, driving_facts, explanation)``.
     """
-    matches = [f for f in facts if f.claim_type == criterion.claim_type]
+    matches = _matching_facts(facts, criterion)
     if not matches:
         return False, 0.0, [], f"No '{criterion.claim_type.value}' fact to test."
 

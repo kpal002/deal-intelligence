@@ -34,10 +34,17 @@ Return ONLY a JSON array. Each element:
   "claim_type": one of [market_size, revenue, team_background,
                 competitive_positioning, funding_history, customer_metrics,
                 net_irr, tvpi, dpi, fund_size, vintage_year, gp_commitment, other],
-  // Fund-document hints: net_irr = a fund/track-record IRR (e.g. "18.5%");
-  // tvpi/dpi = investment multiples (e.g. "1.8x"); fund_size = target/committed
-  // size (e.g. "$750M"); vintage_year = a 4-digit year; gp_commitment = the GP's
-  // commitment (percent or currency). Use these for PE fund PPMs.
+  // Fund-document hints: net_irr = an IRR (e.g. "18.5%"); tvpi/dpi = investment
+  // multiples (e.g. "1.8x"); fund_size = target/committed size (e.g. "$750M");
+  // vintage_year = a 4-digit year; gp_commitment = the GP's commitment (percent
+  // or currency). Use these for PE fund PPMs.
+  //
+  // SCOPE IS CRITICAL for net_irr, tvpi, and dpi: a PPM reports BOTH the
+  // fund/aggregate track-record metric AND individual portfolio-deal metrics.
+  // In claim_subtype_raw, prefix with the scope:
+  //   "fund_net_irr" / "fund_tvpi"  -> the fund's overall/aggregate/net figure
+  //   "deal_net_irr" / "deal_tvpi"  -> a single investment's figure
+  // A single hot deal's IRR must NOT be labeled as the fund's net IRR.
   "claim_subtype_raw": "short free-text label; REQUIRED when claim_type is
                         'other', optional otherwise (e.g. 'ARR', 'GMV')",
   "claim_value": "the value exactly as written, e.g. '$5M', '15% MoM', '12 people'",
