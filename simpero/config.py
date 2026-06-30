@@ -11,6 +11,16 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+try:
+    # Load a local .env (if present) so ANTHROPIC_API_KEY / DATABASE_URL can be
+    # set in a file instead of exported each session. python-dotenv is optional:
+    # if it is not installed, real environment variables still work.
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:  # pragma: no cover - dotenv is an optional convenience
+    pass
+
 # --- Model tiering --------------------------------------------------------
 # The cost-tiered strategy in one place: a cheap model for the high-volume
 # classification pass, a capable model for the lower-volume extraction pass.

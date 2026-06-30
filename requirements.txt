@@ -11,8 +11,9 @@ psycopg[binary]>=3.1
 # PDF parsing with page/table preservation
 pdfplumber>=0.11
 
-# Mandate config
+# Mandate config + local .env loading
 PyYAML>=6.0
+python-dotenv>=1.0
 
 # Query/retrieval API
 fastapi>=0.110
