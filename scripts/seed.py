@@ -19,29 +19,29 @@ import logging
 import os
 import sys
 
-from simpero.config import get_settings
-from simpero.database import init_db, session_scope
-from simpero.llm import LLMClient
-from simpero.mandates import load_mandate_from_yaml
-from simpero.mock_llm import mock_handler
-from simpero.models.audit import AuditEventType
-from simpero.persistence import (
+from dealintel.config import get_settings
+from dealintel.database import init_db, session_scope
+from dealintel.llm import LLMClient
+from dealintel.mandates import load_mandate_from_yaml
+from dealintel.mock_llm import mock_handler
+from dealintel.models.audit import AuditEventType
+from dealintel.persistence import (
     load_entity_names,
     load_facts,
     save_mandate,
     save_score,
 )
-from simpero.pipeline.audit import record_event
-from simpero.pipeline.runner import run_pipeline
-from simpero.scoring.engine import score_deal
+from dealintel.pipeline.audit import record_event
+from dealintel.pipeline.runner import run_pipeline
+from dealintel.scoring.engine import score_deal
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("seed")
 
 SAMPLE_PDF = "data/sample_pitch_deck.pdf"
-# Mandate path is overridable via SIMPERO_MANDATE so a fund PPM can be scored
+# Mandate path is overridable via DEALINTEL_MANDATE so a fund PPM can be scored
 # against the secondaries mandate instead of the operating-company one.
-SAMPLE_MANDATE = os.environ.get("SIMPERO_MANDATE", "data/sample_mandate.yaml")
+SAMPLE_MANDATE = os.environ.get("DEALINTEL_MANDATE", "data/sample_mandate.yaml")
 
 
 def main(pdf_path: str = SAMPLE_PDF, deal_name: str = "NorthStar Logistics") -> None:

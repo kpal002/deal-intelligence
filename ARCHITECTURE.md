@@ -1,9 +1,9 @@
 # Architecture
 
-This document maps each layer of the engine back to Simpero's stated needs, in
+This document maps each layer of the engine back to the platform's stated needs, in
 plain language. It is written to be read by a semi-technical reviewer.
 
-Simpero's four core problems, and where each is addressed:
+The platform's four core problems, and where each is addressed:
 
 1. **Score every deal against a fund's mandate in real time** → the Mandate +
    Scoring layers.
@@ -26,7 +26,7 @@ alongside a SHA-256 content hash, page count, ingestion timestamp, and a
 freeform `source_metadata` bag (sender, deal name, fund). This is the
 chain-of-custody anchor: every downstream fact traces back to these exact bytes.
 
-→ *Simpero requirement: institutional memory / auditability begins at ingestion.*
+→ *Platform requirement: institutional memory / auditability begins at ingestion.*
 
 ### 2. Document processing — *page-aware, layout-aware, cost-tiered*
 
@@ -41,7 +41,7 @@ chain-of-custody anchor: every downstream fact traces back to these exact bytes.
   `legal_boilerplate`, `table`, `other`). The pipeline then **skips boilerplate**
   before the expensive extraction pass.
 
-→ *Simpero requirement #4 (cost control): a cheap model decides where to spend
+→ *Platform requirement #4 (cost control): a cheap model decides where to spend
 the expensive one. This is visible in the audit log, which records the model,
 token counts, and an estimated cost for every call.*
 
@@ -94,7 +94,7 @@ and stores no number — it **never guesses**.
 - **Mandates are versioned independently.** A score records `mandate_version`,
   so revising the rubric never corrupts historical scores.
 
-→ *Simpero requirement #1.* The bundled mandate ("B2B SaaS, $1–10M ARR,
+→ *Platform requirement #1.* The bundled mandate ("B2B SaaS, $1–10M ARR,
 US-based, team of 5+, large market") demonstrates the mechanism is generic, not
 hardcoded to one fund.
 
@@ -120,7 +120,7 @@ counts, and estimated cost. Two design choices make it production-shaped:
 - **Untyped JSONB payloads** so new event types (e.g. `ANALYST_SCORE_OVERRIDE`)
   need no schema change.
 
-→ *Simpero requirement #3: the trail compounds into institutional memory, and
+→ *Platform requirement #3: the trail compounds into institutional memory, and
 the analyst-override feature hooks in without a redesign.*
 
 ---

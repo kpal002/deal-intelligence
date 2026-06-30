@@ -1,4 +1,4 @@
-# Simpero Deal Intelligence Engine
+# Deal Intelligence Engine
 
 A mandate-first fact extraction and scoring engine for PE / family-office due
 diligence. It processes a single structured PDF end to end:
@@ -37,7 +37,7 @@ python scripts/generate_sample_pdf.py
 python scripts/seed.py
 
 # 5. Serve the query API
-uvicorn simpero.api.main:app --reload
+uvicorn dealintel.api.main:app --reload
 ```
 
 `scripts/seed.py` prints the `deal_id`, the extraction summary, and the full
@@ -58,13 +58,13 @@ Interactive docs: <http://localhost:8000/docs>.
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Key settings (resolved in `simpero/config.py`):
+Copy `.env.example` to `.env`. Key settings (resolved in `dealintel/config.py`):
 
 | Variable             | Purpose                                            |
 | -------------------- | -------------------------------------------------- |
 | `DATABASE_URL`       | Postgres connection (defaults match compose)       |
 | `ANTHROPIC_API_KEY`  | If unset, the offline mock LLM is used             |
-| `SIMPERO_*_MODEL`    | Override the Haiku/Sonnet model IDs                |
+| `DEALINTEL_*_MODEL`    | Override the Haiku/Sonnet model IDs                |
 
 ## Tests
 
@@ -83,12 +83,12 @@ pytest -q
   The ORM's portable column types use JSONB/UUID on Postgres and JSON/CHAR on
   SQLite, so the entire stack is testable without a Postgres server.
 
-The suite is type-checked (`mypy simpero/`) and linted (`ruff check`) clean.
+The suite is type-checked (`mypy dealintel/`) and linted (`ruff check`) clean.
 
 ## Project layout
 
 ```
-simpero/
+dealintel/
   config.py            # env, model IDs, cost estimation
   database.py          # SQLAlchemy engine + session scope
   normalize.py         # value normalization (correctness-critical)

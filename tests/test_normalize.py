@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`simpero.normalize`.
+"""Unit tests for :mod:`dealintel.normalize`.
 
 This is the correctness-critical module — the comparable-value layer the whole
 conflict-detection story rests on. Tests cover currency, percentage, count,
@@ -8,8 +8,8 @@ categorical text, the routing dispatcher, and the never-guess failure mode.
 from __future__ import annotations
 
 import pytest
-from simpero.models.fact import ClaimType, NormalizationStatus
-from simpero.normalize import (
+from dealintel.models.fact import ClaimType, NormalizationStatus
+from dealintel.normalize import (
     normalize_claim_value,
     normalize_count,
     normalize_currency,

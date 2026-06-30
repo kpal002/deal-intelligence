@@ -10,14 +10,14 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from simpero.models.fact import (
+from dealintel.models.fact import (
     ClaimType,
     ExtractionMethod,
     Fact,
     NormalizationStatus,
 )
-from simpero.models.mandate import Mandate, MandateCriterion, MandateOperator
-from simpero.scoring.engine import score_deal
+from dealintel.models.mandate import Mandate, MandateCriterion, MandateOperator
+from dealintel.scoring.engine import score_deal
 
 DEAL_ID = uuid.uuid4()
 

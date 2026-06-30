@@ -2,7 +2,7 @@
 
 Provides a fully-populated, throwaway SQLite database so the persistence and API
 layers can be exercised end to end without a Postgres server. The ORM's portable
-column types (``GUID`` / ``JSON_COL`` in ``simpero.orm.tables``) make the same
+column types (``GUID`` / ``JSON_COL`` in ``dealintel.orm.tables``) make the same
 schema work on SQLite for tests and JSONB/UUID on Postgres in production.
 """
 
@@ -12,21 +12,21 @@ import os
 import uuid
 from collections.abc import Iterator
 
+import dealintel.database as database
 import pytest
-import simpero.database as database
-from simpero.llm import LLMClient
-from simpero.mandates import load_mandate_from_yaml
-from simpero.mock_llm import mock_handler
-from simpero.models.audit import AuditEventType
-from simpero.persistence import (
+from dealintel.llm import LLMClient
+from dealintel.mandates import load_mandate_from_yaml
+from dealintel.mock_llm import mock_handler
+from dealintel.models.audit import AuditEventType
+from dealintel.persistence import (
     load_entity_names,
     load_facts,
     save_mandate,
     save_score,
 )
-from simpero.pipeline.audit import record_event
-from simpero.pipeline.runner import run_pipeline
-from simpero.scoring.engine import score_deal
+from dealintel.pipeline.audit import record_event
+from dealintel.pipeline.runner import run_pipeline
+from dealintel.scoring.engine import score_deal
 
 SAMPLE_PDF = "data/sample_pitch_deck.pdf"
 SAMPLE_MANDATE = "data/sample_mandate.yaml"

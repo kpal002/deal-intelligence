@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import uuid
 
+from dealintel.api.main import app
 from fastapi.testclient import TestClient
-from simpero.api.main import app
 
 client = TestClient(app)
 

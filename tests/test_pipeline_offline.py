@@ -12,16 +12,16 @@ import os
 import uuid
 
 import pytest
-from simpero.llm import LLMClient
-from simpero.mandates import load_mandate_from_yaml
-from simpero.mock_llm import mock_handler
-from simpero.models.fact import ClaimType
-from simpero.pipeline.chunking import chunk_pages
-from simpero.pipeline.classification import classify_chunk
-from simpero.pipeline.entity_resolution import EntityResolver
-from simpero.pipeline.extraction import extract_facts
-from simpero.pipeline.parsing import parse_pdf
-from simpero.scoring.engine import score_deal
+from dealintel.llm import LLMClient
+from dealintel.mandates import load_mandate_from_yaml
+from dealintel.mock_llm import mock_handler
+from dealintel.models.fact import ClaimType
+from dealintel.pipeline.chunking import chunk_pages
+from dealintel.pipeline.classification import classify_chunk
+from dealintel.pipeline.entity_resolution import EntityResolver
+from dealintel.pipeline.extraction import extract_facts
+from dealintel.pipeline.parsing import parse_pdf
+from dealintel.scoring.engine import score_deal
 
 SAMPLE_PDF = "data/sample_pitch_deck.pdf"
 SAMPLE_MANDATE = "data/sample_mandate.yaml"
