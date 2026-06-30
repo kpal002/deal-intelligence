@@ -1,18 +1,23 @@
-"""End-to-end demo seed: ingest the sample deck, extract, score, persist.
+"""End-to-end demo seed: ingest a deal PDF, extract, score, persist.
 
 Runs the full pipeline against the configured database (Postgres), scores the
 result against the bundled mandate, and prints a summary. Uses the offline mock
-LLM unless ``ANTHROPIC_API_KEY`` is set, so the demo runs with zero external
+LLM unless ``ANTHROPIC_API_KEY`` is set, so the plumbing runs with zero external
 dependencies beyond Postgres.
 
+The offline mock extractor is tuned to the synthetic sample deck; on a real
+document set ``ANTHROPIC_API_KEY`` so the live Claude extraction path runs.
+
 Run:
-    python scripts/seed.py
+    python scripts/seed.py                       # bundled sample deck
+    python scripts/seed.py data/sample_ppm.pdf "Acme Secondaries Fund III"
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import sys
 
 from simpero.config import get_settings
 from simpero.database import init_db, session_scope
@@ -37,12 +42,23 @@ SAMPLE_PDF = "data/sample_pitch_deck.pdf"
 SAMPLE_MANDATE = "data/sample_mandate.yaml"
 
 
-def main() -> None:
-    """Initialize the schema, run the pipeline, score, and persist everything."""
+def main(pdf_path: str = SAMPLE_PDF, deal_name: str = "NorthStar Logistics") -> None:
+    """Initialize the schema, run the pipeline, score, and persist everything.
+
+    Args:
+        pdf_path: Path to the deal PDF to process.
+        deal_name: Human-readable deal name stored in source metadata.
+    """
     settings = get_settings()
     use_mock = not settings.anthropic_api_key
     client = LLMClient(mock_handler=mock_handler if use_mock else None)
     logger.info("LLM mode: %s", "MOCK (no API key)" if use_mock else "LIVE Claude")
+    if use_mock and pdf_path != SAMPLE_PDF:
+        logger.warning(
+            "Running the MOCK extractor on a non-sample PDF; the mock is tuned to "
+            "the synthetic deck and will extract little. Set ANTHROPIC_API_KEY for "
+            "real extraction."
+        )
 
     init_db()
     mandate = load_mandate_from_yaml(SAMPLE_MANDATE)
@@ -52,9 +68,9 @@ def main() -> None:
         result = run_pipeline(
             session,
             client,
-            SAMPLE_PDF,
+            pdf_path,
             source_metadata={
-                "deal_name": "NorthStar Logistics",
+                "deal_name": deal_name,
                 "received_via": "seed_script",
             },
         )
@@ -99,4 +115,6 @@ if __name__ == "__main__":
         logger.warning(
             "DATABASE_URL not set; using default %s", get_settings().database_url
         )
-    main()
+    pdf_arg = sys.argv[1] if len(sys.argv) > 1 else SAMPLE_PDF
+    name_arg = sys.argv[2] if len(sys.argv) > 2 else "NorthStar Logistics"
+    main(pdf_arg, name_arg)
