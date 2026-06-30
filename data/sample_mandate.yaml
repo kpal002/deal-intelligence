@@ -1,0 +1,77 @@
+# Example fund mandate — demonstrates the scoring mechanism generically.
+#
+# Criteria are *data*: the scoring engine interprets them without any
+# fund-specific code. Swap this file to score against a different thesis.
+#
+# Thesis (Meridian Growth Partners): "B2B SaaS, $1-10M ARR, US-based, team of 5+,
+# operating in a large market."
+
+mandate_id: "8f1d3b2a-0000-4000-8000-000000000001"
+fund_name: "Meridian Growth Partners"
+mandate_version: 1
+description: >
+  Early-growth B2B SaaS thesis: companies with $1-10M ARR, US-based, a team of
+  at least 5, addressing a multi-billion-dollar market.
+geography: ["US"]
+sectors: ["B2B SaaS"]
+min_check_size_usd: 2000000
+max_check_size_usd: 10000000
+
+criteria:
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000010"
+    name: "Minimum ARR"
+    description: "ARR must be at least $1M (floor of the target band)."
+    claim_type: "revenue"
+    operator: "gte"
+    threshold: 1000000
+    threshold_unit: "USD"
+    weight: 0.30
+    is_knockout: true   # below the floor, the deal is out regardless of fit
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000011"
+    name: "ARR ceiling"
+    description: "ARR should not exceed $10M (top of the target band)."
+    claim_type: "revenue"
+    operator: "lte"
+    threshold: 10000000
+    threshold_unit: "USD"
+    weight: 0.10
+    is_knockout: false
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000012"
+    name: "Team of 5+"
+    description: "Team must have at least 5 people."
+    claim_type: "team_background"
+    operator: "gte"
+    threshold: 5
+    threshold_unit: "count"
+    weight: 0.20
+    is_knockout: false
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000013"
+    name: "Large market"
+    description: "Addressable market should be at least $1B."
+    claim_type: "market_size"
+    operator: "gte"
+    threshold: 1000000000
+    threshold_unit: "USD"
+    weight: 0.20
+    is_knockout: false
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000014"
+    name: "B2B SaaS sector"
+    description: "Positioning must indicate a B2B SaaS business."
+    claim_type: "competitive_positioning"
+    operator: "contains"
+    threshold: "saas"
+    weight: 0.10
+    is_knockout: false
+
+  - criterion_id: "8f1d3b2a-0000-4000-8000-000000000015"
+    name: "US-based"
+    description: "Company must be headquartered in the United States."
+    claim_type: "other"
+    operator: "contains"
+    threshold: "united states"
+    weight: 0.10
+    is_knockout: false

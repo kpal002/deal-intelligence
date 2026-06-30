@@ -1,0 +1,23 @@
+# Local PostgreSQL for the deal intelligence engine.
+#   docker compose up -d
+# Then point the app at it (matches the default DATABASE_URL):
+#   postgresql+psycopg://simpero:simpero@localhost:5432/simpero
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: simpero
+      POSTGRES_PASSWORD: simpero
+      POSTGRES_DB: simpero
+    ports:
+      - "5432:5432"
+    volumes:
+      - simpero_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simpero"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  simpero_pgdata:
