@@ -119,14 +119,22 @@ correctly unmet. A document with real figures scores against the same mandate.
 
 ## Query API
 
+A pre-populated demo database (`data/demo.db`, the synthetic deck) is committed,
+so the API can be served against real data with no key, Postgres, or pipeline
+run:
+
 ```bash
-uvicorn dealintel.api.main:app --reload   # docs at /docs
+DATABASE_URL="sqlite+pysqlite:///data/demo.db" \
+  uvicorn dealintel.api.main:app --reload   # docs at /docs
 ```
 
 ```bash
+# list ingested deals (discover a deal_id)
+curl localhost:8000/deals
+
 # NL query → ranked facts with page/excerpt citations + related criteria
 curl -X POST localhost:8000/query -H 'content-type: application/json' \
-  -d '{"deal_id": "<DEAL_ID>", "query": "net IRR and fund size"}'
+  -d '{"deal_id": "<DEAL_ID>", "query": "ARR and team size"}'
 
 # persisted mandate-score breakdown for a deal
 curl localhost:8000/deals/<DEAL_ID>/score
@@ -159,6 +167,20 @@ pytest -q        # 61 tests; mypy dealintel/ and ruff check both clean
 - `test_api.py` — persistence round-trip and HTTP endpoints against SQLite
   (ORM types resolve to JSONB/UUID on Postgres, JSON/CHAR on SQLite).
 
+## Where to look first
+
+- `dealintel/models/fact.py` — the central `Fact` contract and `ClaimType`
+  ontology; the normalized-value fields and the `OTHER` lossless-capture rule.
+- `dealintel/normalize.py` — raw value → (numeric, unit) | text | status; the
+  routing dispatcher and per-kind parsers (currency, percent, multiple, year).
+- `dealintel/scoring/engine.py` — `score_deal`: weight normalization, sub-scope
+  filtering, operator evaluation, knockouts, traceable contributions.
+- `dealintel/pipeline/runner.py` — how the stages are sequenced and audited.
+- `dealintel/orm/tables.py` — persistence schema; the conflict-key index and
+  audit chain.
+- `ARCHITECTURE.md` — data model, per-stage contracts, algorithms, extension
+  points, and known limitations.
+
 ## Layout
 
 ```
@@ -177,7 +199,7 @@ dealintel/
   scoring/engine.py    deterministic weighted scoring with traceability
   api/main.py          FastAPI query/score endpoints
 scripts/               generate_sample_pdf.py, seed.py
-data/                  sample_mandate.yaml, secondaries_mandate.yaml
+data/                  sample_mandate.yaml, secondaries_mandate.yaml, demo.db
 ```
 
 ## Scope

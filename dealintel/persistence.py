@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from dealintel.models.document import DocumentChunk, RawDocument
@@ -189,6 +189,40 @@ def load_facts(session: Session, deal_id: uuid.UUID) -> list[Fact]:
         select(FactORM).where(FactORM.deal_id == deal_id)
     ).scalars().all()
     return [Fact.model_validate(row, from_attributes=True) for row in rows]
+
+
+def list_deals(session: Session) -> list[dict]:
+    """List ingested deals with fact counts and latest score, if any.
+
+    Args:
+        session: Active DB session.
+
+    Returns:
+        One dict per deal: ``deal_id``, ``deal_name`` (from source metadata),
+        ``page_count``, ``fact_count``, and ``total_score`` (None if unscored).
+        Ordered most-recently ingested first.
+    """
+    docs = session.execute(
+        select(RawDocumentORM).order_by(RawDocumentORM.ingested_at.desc())
+    ).scalars().all()
+    summaries: list[dict] = []
+    for doc in docs:
+        fact_count = session.execute(
+            select(func.count())
+            .select_from(FactORM)
+            .where(FactORM.deal_id == doc.deal_id)
+        ).scalar_one()
+        score = load_latest_score(session, doc.deal_id)
+        summaries.append(
+            {
+                "deal_id": doc.deal_id,
+                "deal_name": doc.source_metadata.get("deal_name", ""),
+                "page_count": doc.page_count,
+                "fact_count": fact_count,
+                "total_score": score.total_score if score else None,
+            }
+        )
+    return summaries
 
 
 def load_entity_names(session: Session, deal_id: uuid.UUID) -> dict[uuid.UUID, str]:

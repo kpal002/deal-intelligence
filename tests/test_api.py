@@ -20,6 +20,18 @@ def test_health_ok():
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_list_deals(seeded_db):
+    """GET /deals lists the seeded deal with its counts and score."""
+    response = client.get("/deals")
+    assert response.status_code == 200
+    deals = response.json()
+    assert len(deals) >= 1
+    row = next(d for d in deals if d["deal_id"] == str(seeded_db))
+    assert row["fact_count"] > 0
+    assert row["page_count"] > 0
+    assert row["total_score"] == 100.0
+
+
 def test_query_returns_cited_matches(seeded_db):
     """A natural-language query returns ranked, cited facts + related criteria."""
     response = client.post(

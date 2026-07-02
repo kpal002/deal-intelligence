@@ -2,6 +2,7 @@
 
 Endpoints:
 
+- ``GET /deals`` — list ingested deals with fact counts and latest score.
 - ``POST /query`` — natural-language query -> matching facts with confidence,
   citation (page + excerpt), and related mandate criteria.
 - ``GET /deals/{deal_id}/score`` — full, traceable mandate score breakdown.
@@ -23,7 +24,12 @@ from dealintel.database import session_scope
 from dealintel.mandates import load_mandate_from_yaml
 from dealintel.models.audit import AuditEventType
 from dealintel.models.scoring import ScoreResult
-from dealintel.persistence import load_entity_names, load_facts, load_latest_score
+from dealintel.persistence import (
+    list_deals,
+    load_entity_names,
+    load_facts,
+    load_latest_score,
+)
 from dealintel.pipeline.audit import record_event
 from dealintel.retrieval import QueryResponse, query_facts
 
@@ -57,6 +63,24 @@ class QueryRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=50)
 
 
+class DealSummary(BaseModel):
+    """Row in the ``GET /deals`` listing.
+
+    Attributes:
+        deal_id: Deal identifier (use with the other endpoints).
+        deal_name: Name from ingestion source metadata, if any.
+        page_count: Pages in the source document.
+        fact_count: Number of extracted facts.
+        total_score: Latest mandate score, or None if never scored.
+    """
+
+    deal_id: uuid.UUID
+    deal_name: str
+    page_count: int
+    fact_count: int
+    total_score: float | None
+
+
 def _load_default_mandate():
     """Load the bundled example mandate if available, else ``None``.
 
@@ -80,6 +104,18 @@ def health() -> dict[str, str]:
         A small status payload.
     """
     return {"status": "ok"}
+
+
+@app.get("/deals", response_model=list[DealSummary])
+def get_deals() -> list[DealSummary]:
+    """List ingested deals so a caller can discover deal_ids to query.
+
+    Returns:
+        Deal summaries (id, name, page/fact counts, latest score), most recently
+        ingested first.
+    """
+    with session_scope() as session:
+        return [DealSummary(**row) for row in list_deals(session)]
 
 
 @app.post("/query", response_model=QueryResponse)
