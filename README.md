@@ -25,7 +25,7 @@ without a redesign — see [ARCHITECTURE.md](ARCHITECTURE.md).
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Start Postgres (production-grade storage, not SQLite)
+# 2. Start Postgres
 docker compose up -d
 
 # 3. Generate the sample 10-page PE teaser (NorthStar Logistics)
