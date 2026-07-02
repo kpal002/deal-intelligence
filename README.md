@@ -76,6 +76,47 @@ DATABASE_URL="sqlite+pysqlite:///tmp/deal.db" \
 
 Note the deal_id from the output; the API reads by deal_id.
 
+## Example output
+
+`python scripts/seed.py` on the bundled synthetic deck (mock LLM, no key or
+Postgres required — reproducible by anyone):
+
+```
+=== Pipeline summary ===
+pages:            10
+chunks:           11
+facts extracted:  40
+entities:         5
+est. LLM cost:    $0.0797
+
+=== Mandate score ===
+fund:             Meridian Growth Partners (v1)
+total score:      100.0 / 100
+knockout:         False
+  [KO] Minimum ARR        met=True  4200000.0 USD >= 1000000.0 USD -> met.
+  [  ] ARR ceiling        met=True  1100000.0 USD <= 10000000.0 USD -> met.
+  [  ] Team of 5+         met=True  14.0 count >= 5.0 count -> met.
+  [  ] Large market       met=True  12000000000.0 USD >= 1000000000.0 USD -> met.
+  [  ] B2B SaaS sector    met=True  'saas' found in a matching fact.
+  [  ] US-based           met=True  'united states' found in a matching fact.
+```
+
+A query returns ranked facts with page + verbatim excerpt citations:
+
+```
+query: "what is the ARR and team size"
+  p2 | revenue         | $4.2M -> 4200000.0 USD
+       "The business reached an ARR of $4.2M in the most recent quarter."
+  p7 | team_background | 14 -> 14 count
+       "NorthStar Logistics is run by a team of 14 across engineering, ..."
+```
+
+Real document (live Claude on a 30-page PE secondaries PPM, secondaries
+mandate): 281 facts, 46 entities, ~$0.81. Note the bundled `sample_ppm.pdf` is a
+public template with figures redacted to `XX`; the pipeline stores those as
+`UNPARSEABLE` rather than guessing, so numeric criteria needing real values are
+correctly unmet. A document with real figures scores against the same mandate.
+
 ## Query API
 
 ```bash
