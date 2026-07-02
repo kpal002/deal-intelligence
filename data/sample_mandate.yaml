@@ -1,10 +1,8 @@
-# Example fund mandate — demonstrates the scoring mechanism generically.
+# Operating-company mandate. Criteria are data; the scoring engine reads them
+# without fund-specific code. Set DEALINTEL_MANDATE to use a different file.
 #
-# Criteria are *data*: the scoring engine interprets them without any
-# fund-specific code. Swap this file to score against a different thesis.
-#
-# Thesis (Meridian Growth Partners): "B2B SaaS, $1-10M ARR, US-based, team of 5+,
-# operating in a large market."
+# Thesis (Meridian Growth Partners): B2B SaaS, $1-10M ARR, US-based, team of 5+,
+# large market.
 
 mandate_id: "8f1d3b2a-0000-4000-8000-000000000001"
 fund_name: "Meridian Growth Partners"

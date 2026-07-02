@@ -1,9 +1,8 @@
 """Centralized configuration: environment, database URL, and model constants.
 
-All tunables live here so the rest of the codebase never reads ``os.environ``
-directly. Model IDs are pinned as constants to make the cost-tiering strategy
-(cheap Haiku classification vs. capable Sonnet extraction) explicit and
-auditable — the audit log records which model produced each result.
+All tunables resolve here so no other module reads ``os.environ`` directly.
+Model IDs are pinned as constants: Haiku for classification, Sonnet for
+extraction. The audit log records which model produced each result.
 """
 
 from __future__ import annotations

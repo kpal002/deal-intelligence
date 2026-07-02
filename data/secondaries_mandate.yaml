@@ -1,10 +1,10 @@
-# Example mandate for a PE *fund* (secondaries) PPM — demonstrates that the
-# scoring engine is generic across document families once the ontology covers
-# the relevant claim types. Pair with a fund PPM, e.g.:
-#   python scripts/seed.py data/sample_ppm.pdf "Secondaries Fund III"
+# PE fund (secondaries) PPM mandate. Uses the fund-metric claim types
+# (net_irr, tvpi, fund_size, vintage_year, gp_commitment). Run with:
+#   DEALINTEL_MANDATE=data/secondaries_mandate.yaml \
+#     python scripts/seed.py data/sample_ppm.pdf "Secondaries Fund III"
 #
-# Thesis (Harborline Secondaries): back established secondaries managers with a
-# strong net track record, meaningful fund size, recent vintage, and GP alignment.
+# Thesis (Harborline Secondaries): net IRR >= 15%, TVPI >= 1.5x,
+# fund size >= $500M, vintage >= 2015, GP commitment >= 2%.
 
 mandate_id: "8f1d3b2a-0000-4000-8000-000000000002"
 fund_name: "Harborline Secondaries"

@@ -1,18 +1,15 @@
-"""Anthropic Claude client wrapper with cost tiering, retries, and a mock path.
+"""Anthropic client wrapper: tiered calls, retries, and a mock path.
 
-Two responsibilities:
+- :meth:`LLMClient.classify` calls the Haiku tier; :meth:`LLMClient.extract`
+  calls the Sonnet tier. Each returns an :class:`LLMResult` with token usage and
+  an estimated cost for the audit log.
+- Transient errors are retried with exponential backoff; the retry budget
+  raises :class:`LLMError` when exhausted.
+- A ``mock_handler`` runs the pipeline without a live API key (seed script,
+  tests).
 
-1. **Cost tiering, made explicit.** :meth:`LLMClient.classify` uses the cheap
-   Haiku tier; :meth:`LLMClient.extract` uses the capable Sonnet tier. Every
-   call returns an :class:`LLMResult` carrying token usage and an estimated cost
-   so the pipeline can write it to the audit log.
-2. **Graceful degradation.** Transient API errors are retried with backoff. A
-   ``mock_handler`` lets the entire pipeline run deterministically without a
-   live API key — used by the demo seed script and tests.
-
-The wrapper deliberately does not parse model output into Pydantic here; that
-belongs to the extraction/classification stages, which own the prompt/response
-contract.
+Output parsing lives in the extraction/classification stages, which own the
+prompt/response contract; this wrapper returns raw text.
 """
 
 from __future__ import annotations

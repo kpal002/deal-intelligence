@@ -97,8 +97,7 @@ _LEADING_ALPHA_RE = re.compile(r"[a-z]+")
 class NormalizedValue(BaseModel):
     """Structured result of normalizing one raw claim value.
 
-    Mirrors the normalized fields on :class:`dealintel.models.fact.Fact` so a
-    caller can splat it straight onto a Fact.
+    Mirrors the normalized fields on :class:`dealintel.models.fact.Fact`.
 
     Attributes:
         numeric: Parsed numeric magnitude, or ``None`` if non-numeric/unparsed.

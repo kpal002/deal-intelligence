@@ -1,9 +1,8 @@
 """Pydantic data contracts shared across every pipeline layer.
 
-These models are pure data shapes with no I/O or business logic. The ORM
-layer (``dealintel.orm``) persists them; the pipeline and scoring layers pass
-them between stages. Keeping them logic-free is what lets the same Fact
-object travel from extraction to scoring to API response unchanged.
+Pure data shapes with no I/O or business logic. The ORM layer
+(``dealintel.orm``) persists them; the pipeline and scoring layers pass them
+between stages.
 """
 
 from dealintel.models.audit import AuditEventType, AuditLogEntry

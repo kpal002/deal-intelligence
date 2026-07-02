@@ -1,8 +1,7 @@
 """Persistence helpers: map Pydantic contracts to ORM rows and save them.
 
-A single module owns the contract<->ORM translation so the pipeline and API
-never hand-write column assignments. Read helpers return Pydantic contracts so
-callers stay in the data-contract world end to end.
+This module owns the contract<->ORM translation; the pipeline and API do not
+touch ORM rows. Read helpers return Pydantic contracts.
 """
 
 from __future__ import annotations

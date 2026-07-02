@@ -91,20 +91,17 @@ class ExtractionMethod(str, Enum):
 class Fact(BaseModel):
     """A single atomic claim extracted from a document.
 
-    Schema design notes for the multi-source extension (not built here, but the
-    seams are deliberate):
+    Notes for the multi-source extension (not implemented; see ARCHITECTURE.md):
 
-    - **Conflict detection keys on the normalized value, not the raw string.**
-      The natural conflict signal is two documents asserting the same
-      ``(entity_id, claim_type)`` with different *normalized* values. The query
-      therefore groups on
+    - Conflict detection keys on the normalized value. Two documents asserting
+      the same ``(entity_id, claim_type)`` with different normalized values are
+      found by grouping on
       ``(entity_id, claim_type, normalized_value_numeric, normalized_value_unit)``
-      for numeric claims and ``normalized_value_text`` for categorical ones —
-      NOT on ``claim_value``, because "$5M", "$5,000,000", and "5 million USD"
-      are three raw strings for one value. Normalization at extraction time is a
-      *precondition* for the conflict layer, not a detail.
-    - ``document_version`` lets the same document be re-processed (e.g. after an
-      analyst correction) without orphaning the original facts.
+      (numeric) or ``normalized_value_text`` (categorical), not on
+      ``claim_value`` ("$5M", "$5,000,000", "5 million USD" are one value).
+      Normalization at extraction time is therefore a precondition.
+    - ``document_version`` allows re-processing a document without orphaning the
+      original facts.
 
     Attributes:
         fact_id: Stable identifier for this claim.
@@ -171,13 +168,12 @@ class Fact(BaseModel):
 
     @model_validator(mode="after")
     def _other_requires_subtype(self) -> Fact:
-        """Ensure ``OTHER`` claims carry a human-meaningful label.
+        """Require a label on ``OTHER`` claims.
 
-        Implemented as a model (not field) validator because a field validator
-        does not run when ``claim_subtype_raw`` is omitted and defaults to
-        ``None`` — which is exactly the case we must catch. A claim bucketed as
-        ``OTHER`` without a label means the extractor dropped meaning: fail
-        loudly rather than persist a useless fact.
+        A model (not field) validator, because a field validator does not run
+        when ``claim_subtype_raw`` is omitted and defaults to ``None`` — the case
+        being checked. An ``OTHER`` claim with no label is rejected rather than
+        persisted.
         """
         if self.claim_type == ClaimType.OTHER and not (
             self.claim_subtype_raw and self.claim_subtype_raw.strip()

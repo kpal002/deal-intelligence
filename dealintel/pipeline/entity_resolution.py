@@ -1,10 +1,9 @@
-"""Entity resolution scaffold: normalize name variants to canonical entities.
+"""Entity resolution: map name variants to canonical entities within a deal.
 
-Even with a single document this layer exists, because it is the seam where
-multi-document entity linking will plug in. The current implementation resolves
-within one deal using normalized-name matching and accumulates observed aliases.
-The interface (``resolve``) is exactly what a future fuzzy / embedding-based
-resolver would implement — no caller changes required to upgrade it.
+Resolves by a normalized match key (lowercased, punctuation and common corporate
+suffixes stripped) and accumulates observed variants as aliases. The interface
+is a callable ``(raw_name, claim_type) -> entity_id``; a fuzzy or embedding-based
+resolver would implement the same signature without caller changes.
 """
 
 from __future__ import annotations

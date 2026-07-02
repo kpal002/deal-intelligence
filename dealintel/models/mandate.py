@@ -48,8 +48,8 @@ class MandateOperator(str, Enum):
 class MandateCriterion(BaseModel):
     """A single investability criterion within a fund's mandate.
 
-    Design intent: criteria are data, not code. The scoring engine interprets
-    them generically — adding a new criterion requires only a YAML entry.
+    Criteria are data: the scoring engine reads them generically, so a new
+    criterion is a YAML entry, not a code change.
 
     Attributes:
         criterion_id: Stable identifier.

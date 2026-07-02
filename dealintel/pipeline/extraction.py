@@ -142,9 +142,8 @@ def _build_fact(
         raw_value = str(record.get("claim_value", "")).strip()
         entity_raw = str(record.get("entity", "")).strip() or "unknown"
         subtype = record.get("claim_subtype_raw")
-        # Lossless-capture safety net: if the model bucketed OTHER without a
-        # label, synthesize one from the value so the Fact validator passes and
-        # the claim is preserved instead of discarded.
+        # If the model returned OTHER with no label, derive one from the value
+        # so the Fact validator passes and the claim is kept, not discarded.
         if claim_type is ClaimType.OTHER and not (subtype and str(subtype).strip()):
             subtype = f"unmapped: {raw_value[:60]}" if raw_value else "unmapped claim"
 

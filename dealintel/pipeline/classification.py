@@ -1,9 +1,8 @@
-"""Section classification pass (Haiku tier) — the cheap triage step.
+"""Section classification (Haiku tier).
 
-Each chunk is labeled with a :class:`SectionType` so the expensive extraction
-pass can skip low-value sections (e.g. ``legal_boilerplate``) and focus the
-Sonnet budget where facts actually live. This is the cost-tiering strategy made
-concrete: a cheap model decides where to spend the expensive one.
+Labels each chunk with a :class:`SectionType`. The runner uses the label to skip
+sections (e.g. ``legal_boilerplate``) before the Sonnet extraction pass, so the
+cheaper model bounds where the more expensive one runs.
 """
 
 from __future__ import annotations
