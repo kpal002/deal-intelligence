@@ -4,6 +4,17 @@ Single-document extraction and scoring pipeline. This document describes the
 data model, per-stage contracts, the normalization and scoring algorithms, and
 the extension points the schema reserves.
 
+## Requirements mapping
+
+| Requirement                                   | Where it is implemented                                                                 |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Score deals against a fund mandate            | `scoring/engine.py` (`score_deal`); mandates as data in `data/*.yaml`, `models/mandate.py` |
+| Extract founder claims with citations         | `pipeline/extraction.py`; `Fact.source_page`/`source_excerpt` (excerpt validated non-empty) |
+| Triangulate against sources (multi-doc)       | Single-source implemented; schema reserves it — normalized values + `ix_facts_conflict_key`, `document_version` (see Extension points) |
+| Audit trail / institutional memory            | `audit_log` table; one `AuditLogEntry` per ingest/classify/extract/score/query; `parent_event_id`/`root_event_id` chain |
+| Manage LLM cost via tiered processing         | Haiku classification gates Sonnet extraction (`pipeline/runner.py`, `pipeline/classification.py`); per-call tokens + cost in the audit log |
+| Analyst override (future)                     | `ExtractionMethod.MANUAL_OVERRIDE` + audit chain reserve the path (see Extension points) |
+
 ## Data flow
 
 ```
