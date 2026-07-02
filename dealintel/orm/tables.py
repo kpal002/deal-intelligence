@@ -118,9 +118,9 @@ class CanonicalEntityORM(Base):
 class FactORM(Base):
     """An extracted, cited, normalized claim.
 
-    The composite index is the load-bearing element for the multi-source
-    conflict story: it makes the "same entity + claim_type with differing
-    normalized value" GROUP BY cheap before any conflict logic exists.
+    ``ix_facts_conflict_key`` supports the cross-document conflict query (same
+    entity + claim_type with differing normalized value) before any conflict
+    logic exists. See ARCHITECTURE.md, Extension points.
     """
 
     __tablename__ = "facts"

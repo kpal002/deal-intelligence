@@ -1,12 +1,10 @@
 """Scoring contracts: traceable, immutable mandate-scoring output.
 
-The hierarchy is ``ScoreResult`` -> many ``CriterionScore`` -> many
-``FactContribution``. Citation data (page + excerpt) is embedded inline on
-``FactContribution`` at scoring time *by design*: a score is an immutable
-snapshot of what was known when it was produced. If a fact's excerpt is later
-corrected, historical scores intentionally retain the original wording, so an
-auditor sees exactly what drove the decision then. This is stated auditability,
-not denormalization debt — see ARCHITECTURE.md.
+Hierarchy: ``ScoreResult`` -> ``CriterionScore`` -> ``FactContribution``.
+Citation data (page + excerpt) is copied onto ``FactContribution`` at scoring
+time, so a score is a snapshot: a later correction to a fact's excerpt does not
+change historical scores. Deliberate denormalization for auditability; see
+ARCHITECTURE.md.
 """
 
 from __future__ import annotations
@@ -25,10 +23,9 @@ def _utcnow() -> datetime:
 class FactContribution(BaseModel):
     """Traceability record: which fact drove which part of a score.
 
-    This is what makes scoring explainable and auditable. An analyst reviewing a
-    score can walk criterion -> fact -> source_page -> source_excerpt without
-    any additional queries. Fields are copied from the Fact at scoring time and
-    frozen here (immutable snapshot).
+    Lets a reader walk criterion -> fact -> source_page -> source_excerpt with
+    no additional queries. Fields are copied from the Fact at scoring time and
+    frozen here (snapshot).
 
     Attributes:
         fact_id: The contributing fact's identifier (link back to live data).

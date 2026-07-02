@@ -1,22 +1,18 @@
-"""Mandate scoring engine — deterministic, weighted, fully traceable.
+"""Mandate scoring: facts + mandate -> traceable ScoreResult.
 
-The engine takes extracted facts plus a mandate and returns a
-:class:`ScoreResult` in which every sub-score links back to the specific facts
-(with page + excerpt) that drove it. It is intentionally pure: no I/O, no model
-calls, no global state — so it is exhaustively unit-testable, which is exactly
-what a reviewer will scrutinize.
+Pure and deterministic (no I/O, no model calls, no global state). Each sub-score
+links to the facts that drove it, with page and excerpt.
 
 Scoring model:
 
-- Weights are normalized across a mandate's criteria so they sum to 1.0,
-  regardless of how the YAML was authored.
+- Criterion weights are normalized to sum to 1.0, so mandates use relative
+  weights.
 - Each criterion yields a binary ``met`` and a ``raw_score`` in [0, 1]; the
   weighted contribution is ``raw_score * normalized_weight``.
-- ``total_score`` is the weighted sum scaled to 0–100.
-- A failed **knockout** criterion forces ``total_score`` to 0 and flags the
-  result, regardless of other criteria.
-- Comparisons operate on the **normalized** fact values
-  (``normalized_value_numeric`` / ``normalized_value_text``), never raw strings.
+- ``total_score`` is the weighted sum scaled to 0-100.
+- A failed knockout criterion forces ``total_score`` to 0.
+- Comparisons use normalized values (``normalized_value_numeric`` /
+  ``normalized_value_text``), not raw strings.
 """
 
 from __future__ import annotations

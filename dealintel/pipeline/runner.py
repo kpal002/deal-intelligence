@@ -169,10 +169,10 @@ def run_pipeline(
 
 
 def _extractable(chunks: list[DocumentChunk]) -> list[DocumentChunk]:
-    """Filter chunks worth sending to the expensive extraction tier.
+    """Select chunks eligible for the extraction tier.
 
-    Skips ``legal_boilerplate`` — the cost-tiering payoff: the cheap classifier
-    keeps the Sonnet budget off sections that never contain investable facts.
+    Skips ``legal_boilerplate`` so the Sonnet pass does not run on sections that
+    do not contain extractable facts.
 
     Args:
         chunks: All classified chunks.

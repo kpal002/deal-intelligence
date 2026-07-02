@@ -3,18 +3,17 @@
 A ``Fact`` is one cited claim pulled from one chunk. A ``CanonicalEntity`` is
 the normalized subject a fact is about, deduplicated across name variants.
 
-Two correctness-critical guarantees are encoded here:
+Two invariants:
 
-1. **Normalized values drive conflict detection, never the raw string.**
-   ``claim_value`` is kept verbatim for citation fidelity. The comparable form
-   lives in ``normalized_value_numeric`` + ``normalized_value_unit`` (numeric
-   claims) or ``normalized_value_text`` (categorical claims), produced by
+1. Comparison uses normalized values, not the raw string. ``claim_value`` is
+   kept verbatim for citation; the comparable form is
+   ``normalized_value_numeric`` + ``normalized_value_unit`` (numeric) or
+   ``normalized_value_text`` (categorical), produced by
    :mod:`dealintel.normalize`. ``normalization_status`` records whether parsing
-   succeeded, failed, or was not applicable — values are never silently
-   dropped or guessed.
-2. **Lossless capture on a ClaimType miss.** A claim that fits no named
-   ``ClaimType`` is mapped to ``OTHER`` with a free-text ``claim_subtype_raw``
-   so it is preserved and later re-mappable, not lost.
+   succeeded, failed, or was not applicable.
+2. A claim that fits no named ``ClaimType`` is stored as ``OTHER`` with a
+   free-text ``claim_subtype_raw`` (enforced by a model validator), so it is
+   preserved and later re-mappable rather than dropped.
 """
 
 from __future__ import annotations
@@ -34,14 +33,12 @@ def _utcnow() -> datetime:
 class ClaimType(str, Enum):
     """Ontology of claim types the extraction pipeline can identify.
 
-    Keeping this as an enum (not freeform text) is what makes mandate scoring
-    deterministic — a mandate criterion references a ``ClaimType`` and matching
-    is an equality check, not a fuzzy string comparison.
+    An enum (not free text) keeps scoring deterministic: a criterion references a
+    ``ClaimType`` and matching is equality, not fuzzy string comparison.
 
-    ``OTHER`` is the escape hatch and must never be a black hole: any claim that
-    fits no named type is mapped here with a descriptive ``claim_subtype_raw``
-    so the claim is preserved and later re-mappable. The "we extract all
-    claims" promise depends on that fallback being populated, not discarded.
+    ``OTHER`` is the fallback: a claim fitting no named type is stored here with
+    a descriptive ``claim_subtype_raw`` so it is preserved and later re-mappable
+    rather than discarded.
     """
 
     MARKET_SIZE = "market_size"

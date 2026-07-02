@@ -78,10 +78,10 @@ class RawDocument(BaseModel):
 class ParsedPage(BaseModel):
     """Single page extracted from a PDF, preserving layout signals.
 
-    Keeping ``page_number`` on every downstream object is what makes accurate
-    citations possible. Tables are extracted separately from prose so the
-    chunker can keep them together with their surrounding context rather than
-    splitting at token boundaries.
+    ``page_number`` propagates to every downstream object so facts can cite an
+    exact page. Tables are extracted separately from prose so the chunker can
+    keep them with their surrounding context rather than splitting at token
+    boundaries.
 
     Attributes:
         deal_id: Owning deal.

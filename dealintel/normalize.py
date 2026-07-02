@@ -1,23 +1,21 @@
-"""Claim value normalization — the correctness-critical comparable-form layer.
+"""Claim value normalization: raw string -> comparable value.
 
-The raw text a model extracts ("$5M", "$5,000,000", "5 million USD") is not
-safe to compare directly: one underlying value can take many string forms.
-This module parses raw claim values into a structured, comparable form so the
-conflict-detection and scoring layers can key on the *value*, not the spelling.
+One underlying value has many string forms ("$5M", "$5,000,000", "5 million
+USD"). Scoring and conflict detection compare normalized values, so this module
+parses raw claim values into a numeric+unit, canonical text, or a status.
 
-Design principles:
+Contract:
 
-- **Never guess.** If a value looks quantitative but cannot be parsed, return
-  ``UNPARSEABLE`` with null numeric fields rather than inventing a number.
-- **Never lose the original.** This module only ever *adds* a normalized form;
-  the verbatim ``claim_value`` is owned by :class:`dealintel.models.fact.Fact`
-  and untouched here.
-- **Deterministic and pure.** No I/O, no model calls — fully unit-testable,
-  which is exactly where reviewers will look.
+- If a value is expected to be quantitative but does not parse, return
+  ``UNPARSEABLE`` with null numeric fields; do not infer a number.
+- The verbatim ``claim_value`` is owned by :class:`dealintel.models.fact.Fact`;
+  this module only produces the normalized form.
+- Pure and deterministic (no I/O), so it is unit-tested in isolation.
 
-Public entry point: :func:`normalize_claim_value`. The per-kind helpers
+Entry point: :func:`normalize_claim_value`. Per-kind helpers
 (:func:`normalize_currency`, :func:`normalize_percentage`,
-:func:`normalize_count`) are exposed for direct testing and reuse.
+:func:`normalize_count`, :func:`normalize_multiple`, :func:`normalize_year`)
+are exposed for direct use.
 """
 
 from __future__ import annotations

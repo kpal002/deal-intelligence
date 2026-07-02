@@ -1,162 +1,196 @@
 # Architecture
 
-This document maps each layer of the engine back to the platform's stated needs, in
-plain language. It is written to be read by a semi-technical reviewer.
+Single-document extraction and scoring pipeline. This document describes the
+data model, per-stage contracts, the normalization and scoring algorithms, and
+the extension points the schema reserves.
 
-The platform's four core problems, and where each is addressed:
+## Data flow
 
-1. **Score every deal against a fund's mandate in real time** → the Mandate +
-   Scoring layers.
-2. **Extract founder claims and triangulate them against sources, with
-   citations** → the Extraction + Fact layers (single-source today; the schema
-   is built for triangulation).
-3. **A full audit trail that compounds into institutional memory** → the Audit
-   layer.
-4. **Manage LLM cost at scale via tiered processing** → the Classification +
-   Extraction tiering.
+```
+PDF ─ingest→ RawDocument(+bytes) ─parse→ [ParsedPage] ─chunk→ [DocumentChunk]
+   ─classify(Haiku)→ chunks w/ section_type
+   ─extract(Sonnet)→ [Fact] (normalized) + [CanonicalEntity]
+   ─persist→ Postgres ─score(mandate)→ ScoreResult
+```
 
----
+Every stage consumes and returns Pydantic models (`dealintel/models/`). The
+runner (`pipeline/runner.py`) sequences them within one transaction and writes
+an `AuditLogEntry` per operation. Persistence (`persistence.py`) is the only
+layer that maps contracts to ORM rows; the ORM (`orm/tables.py`) is never
+imported by pipeline or scoring code.
 
-## Layer-by-layer
+## Data model
 
-### 1. Raw storage — *"never discard the original"*
+Tables (`orm/tables.py`); portable column types resolve to JSONB/UUID on
+Postgres and JSON/CHAR on SQLite.
 
-The original PDF bytes are stored verbatim in `raw_documents.raw_bytes`,
-alongside a SHA-256 content hash, page count, ingestion timestamp, and a
-freeform `source_metadata` bag (sender, deal name, fund). This is the
-chain-of-custody anchor: every downstream fact traces back to these exact bytes.
+- `raw_documents` — `deal_id` (PK), `file_hash` (SHA-256, indexed for dedup),
+  `source_metadata` (JSONB), `raw_bytes` (original file retained).
+- `chunks` — `chunk_id` (PK), `deal_id` (FK), `chunk_index`, `source_pages`
+  (JSONB), `section_type`, `content`, `classification_confidence`.
+- `canonical_entities` — `entity_id` (PK), `deal_id` (FK), `canonical_name`,
+  `entity_type`, `aliases` (JSONB).
+- `facts` — see below; FKs to `raw_documents`, `chunks`, `canonical_entities`.
+- `mandates` — versioned; `criteria` stored as JSONB.
+- `score_results` — immutable snapshots; `criterion_scores` (JSONB) with
+  citations embedded.
+- `audit_log` — append-only; `parent_event_id` + `root_event_id`, JSONB
+  payloads, token/cost columns.
 
-→ *Platform requirement: institutional memory / auditability begins at ingestion.*
+### Fact
 
-### 2. Document processing — *page-aware, layout-aware, cost-tiered*
+The central record. Fields relevant to comparison and provenance:
 
-- **Parsing** (`pipeline/parsing.py`) uses pdfplumber and keeps **page numbers**
-  and **tables** as first-class data, separate from prose. Page numbers ride on
-  every object so any fact can cite an exact page.
-- **Chunking** (`pipeline/chunking.py`) is **layout-aware**: a financial table
-  is kept together with the sentence that introduces it, rather than split at an
-  arbitrary token boundary that would orphan the number from its meaning.
-- **Classification** (`pipeline/classification.py`) runs the **cheap Haiku tier**
-  to label each section (`financial_data`, `narrative_claim`,
-  `legal_boilerplate`, `table`, `other`). The pipeline then **skips boilerplate**
-  before the expensive extraction pass.
+```
+deal_id, chunk_id, entity_id, entity_raw_name
+claim_type            enum (operating-company + fund metrics; see below)
+claim_subtype_raw     free text; required when claim_type == OTHER
+claim_value           verbatim string, never mutated
+normalized_value_numeric / _unit / _text
+normalization_status  NORMALIZED | UNPARSEABLE | NOT_APPLICABLE
+source_page, source_excerpt   citation (excerpt validated non-empty)
+confidence_score, extraction_method, document_version, extracted_at
+```
 
-→ *Platform requirement #4 (cost control): a cheap model decides where to spend
-the expensive one. This is visible in the audit log, which records the model,
-token counts, and an estimated cost for every call.*
+`claim_type` covers `market_size, revenue, team_background,
+competitive_positioning, funding_history, customer_metrics`, the fund-document
+set `net_irr, tvpi, dpi, fund_size, vintage_year, gp_commitment`, and `other`.
+A claim that matches no type is stored as `other` with a free-text
+`claim_subtype_raw` rather than dropped; this is enforced by a model validator.
 
-### 3. Structured fact extraction — *cited, normalized, lossless*
+Index `ix_facts_conflict_key` on
+`(deal_id, claim_type, normalized_value_numeric, normalized_value_unit)`
+supports the conflict query described under Extension points.
 
-The **Sonnet tier** (`pipeline/extraction.py`) extracts atomic claims into the
-`Fact` contract: `entity`, `claim_type`, `claim_value`, `source_page`,
-`source_excerpt`, `confidence_score`, `extraction_method`, `document_version`,
-`extracted_at`, and more. Two guarantees matter:
+## Pipeline stages
 
-- **Every fact is cited.** `source_excerpt` is verbatim and non-empty (enforced
-  by validation) — a citation without evidence is rejected.
-- **Nothing is silently dropped.** A claim that fits no `claim_type` is mapped to
-  `OTHER` with a required free-text `claim_subtype_raw`, so messy real-world
-  decks don't lose facts (enforced by a model validator). This is what keeps the
-  "we extract every claim" promise honest on the first non-ideal document.
+**Ingestion** (`pipeline/ingestion.py`) reads bytes, computes the SHA-256, and
+opens the PDF to record page count. Returns `RawDocument` plus the raw bytes;
+persistence stores the bytes unmodified.
 
-**Entity resolution** (`pipeline/entity_resolution.py`) normalizes name variants
-("Acme Corp", "ACME Corporation", "Acme Inc.") into a canonical entities table —
-present even with one document, because it is the exact seam multi-document
-linking plugs into.
+**Parsing** (`pipeline/parsing.py`) extracts text and tables per page with
+pdfplumber. Text and tables are kept separate. A failure on one page is captured
+in `extraction_warnings` and parsing continues, so one malformed page does not
+abort a document.
 
-### 4. Value normalization — *the precondition for conflict detection*
+**Chunking** (`pipeline/chunking.py`) emits one chunk per prose segment plus one
+chunk per table, prefixing each table with the page's leading prose so the table
+retains introducing context. Prose over ~4k chars is split on paragraph
+boundaries. `chunk_index` preserves reading order; `source_pages` records the
+originating page(s).
 
-`normalize.py` parses raw values into a **comparable** form:
-`normalized_value_numeric` + `normalized_value_unit` for quantities,
-`normalized_value_text` for categoricals, with a `normalization_status` of
-`NORMALIZED` / `UNPARSEABLE` / `NOT_APPLICABLE`.
+**Classification** (`pipeline/classification.py`, Haiku) labels each chunk with
+a `SectionType`. Malformed model output falls back to `OTHER` at confidence 0
+rather than raising. The runner skips `legal_boilerplate` before extraction,
+which is the mechanism by which the cheap pass bounds spend on the expensive one.
 
-This is deliberately its own, exhaustively unit-tested module because it is
-load-bearing: `$5M`, `$5,000,000`, and `5 million USD` are three strings for one
-value. **Normalization is the precondition for the conflict layer** — it is not
-a solved problem we hide, it is a designed seam (see §"Designed seams"). When a
-value looks quantitative but can't be parsed, the engine records `UNPARSEABLE`
-and stores no number — it **never guesses**.
+**Extraction** (`pipeline/extraction.py`, Sonnet) returns a JSON array of
+claims. Each record is parsed defensively: a malformed element is skipped with a
+warning, not fatal. For each valid record the stage normalizes the value,
+resolves the entity, and constructs a validated `Fact`. Non-JSON output yields
+zero facts for that chunk.
 
-### 5. Mandate scoring — *configurable, weighted, fully traceable*
+**Entity resolution** (`pipeline/entity_resolution.py`) canonicalizes names
+within a deal by a match key (lowercased, punctuation and common corporate
+suffixes stripped). First occurrence creates a `CanonicalEntity`; later variants
+append to `aliases`. The interface is a callable `(raw_name, claim_type) →
+entity_id`; a fuzzy/embedding resolver would implement the same signature.
 
-- **Mandates are data, not code** (`data/sample_mandate.yaml`, validated by
-  `mandates.py`). A criterion references a `claim_type`, an `operator`
-  (`gte/lte/eq/contains/in/exists`), a `threshold`, a `weight`, and an optional
-  `is_knockout`. Adding a criterion is a YAML edit; the engine never changes.
-- **The engine** (`scoring/engine.py`) is pure and deterministic. It normalizes
-  weights to sum to 1.0, compares against **normalized** values (never raw
-  strings), supports **knockout** criteria (a failed knockout forces the total
-  to 0), and emits a 0–100 score.
-- **Traceability is the point.** Every sub-score lists the exact facts that drove
-  it, each with page + verbatim excerpt, so an analyst walks
-  criterion → fact → page → excerpt with no extra queries.
-- **Mandates are versioned independently.** A score records `mandate_version`,
-  so revising the rubric never corrupts historical scores.
+## Normalization
 
-→ *Platform requirement #1.* The bundled mandate ("B2B SaaS, $1–10M ARR,
-US-based, team of 5+, large market") demonstrates the mechanism is generic, not
-hardcoded to one fund.
+`normalize.py` is pure and separately unit-tested. `normalize_claim_value(raw,
+claim_type)` returns `(numeric, unit)`, `text`, or a status, routed by claim
+type and value content:
 
-### 6. Retrieval & citation API — *FastAPI* (`api/main.py`)
+1. empty → `NOT_APPLICABLE`
+2. categorical type (competitive positioning) → canonical text
+3. multiple type (tvpi/dpi) or an `Nx` token → `normalize_multiple` → unit `multiple`
+4. `vintage_year` → 4-digit year → unit `year`
+5. `%` present or percent type (net_irr) → `normalize_percentage` → unit `percent`
+6. currency type (revenue, market_size, funding_history, fund_size) or a
+   currency symbol/code → `normalize_currency` → unit `USD`/`EUR`/…
+7. any remaining numeric value → `normalize_count`
+8. otherwise → canonical text
 
-- `POST /query` — a natural-language question returns ranked facts, each with
-  confidence, page + excerpt citation, and the related mandate criteria.
-- `GET /deals/{deal_id}/score` — the full, traceable score breakdown.
+Rules of note:
 
-The retrieval matcher is intentionally transparent (keyword + claim-type hints)
-for the PoC; the docstring marks where an embedding/LLM reranker would slot in.
+- Scale words/suffixes (`k`, `m/mn/million`, `b/bn/billion`) are applied, so
+  `$5M`, `$5,000,000`, and `5 million USD` all yield `5_000_000.0 USD`.
+- Percentages: an explicit `%` is taken as-is; a bare value in `[0,1]` is treated
+  as a proportion and scaled (`0.15 → 15.0`).
+- If a value is expected to be quantitative but no number parses, the result is
+  `UNPARSEABLE` with a null numeric — the pipeline stores the fact but records
+  the failure rather than inferring a value.
 
-### 7. Audit trail — *append-only, override-ready* (`models/audit.py`)
+Normalization is a precondition for conflict detection (Extension points):
+comparison across documents keys on the normalized numeric/unit, not the raw
+string.
 
-Every ingestion, classification, extraction, scoring run, and query writes one
-`AuditLogEntry` with full input/output payloads, timestamps, model, token
-counts, and estimated cost. Two design choices make it production-shaped:
+## Scoring
 
-- **`parent_event_id` + `root_event_id`.** A future analyst override writes a new
-  entry chained to the event it overrides. Carrying the chain's `root_event_id`
-  means a full override history is retrievable in **one indexed query** — no
-  recursive traversal.
-- **Untyped JSONB payloads** so new event types (e.g. `ANALYST_SCORE_OVERRIDE`)
-  need no schema change.
+`scoring/engine.py`, `score_deal(deal_id, facts, mandate, entity_names)`. Pure;
+no I/O.
 
-→ *Platform requirement #3: the trail compounds into institutional memory, and
-the analyst-override feature hooks in without a redesign.*
+- Weights are normalized to sum to 1.0, so mandate authors use relative weights.
+- Facts are matched to a criterion by `claim_type` and an optional
+  `claim_subtype` sub-scope filter (substring, case-insensitive). A criterion
+  that requires a sub-scope rejects facts with no subtype — it fails closed
+  rather than assuming scope. This prevents, e.g., a single deal's IRR from
+  satisfying a fund-level net-IRR threshold.
+- Numeric operators (`gte/lte/eq`) run against `normalized_value_numeric` and
+  require unit compatibility with the criterion's `threshold_unit`. `gte` uses
+  the maximum candidate as supporting evidence, `lte` the minimum, `eq` the
+  nearest. Text operators (`contains/in`) run against normalized text.
+  `exists` tests for any matching fact.
+- Each criterion yields binary `met` and a `raw_score` (0/1); the weighted
+  contribution is `raw_score × normalized_weight`. `total_score` is the weighted
+  sum × 100. The raw score is the seam for graded scoring.
+- A failed knockout criterion forces `total_score` to 0 and records which one.
+- Each `CriterionScore` lists the `FactContribution`s that drove it (fact_id,
+  entity, value, page, excerpt, confidence, direction).
 
----
+`raw_score` being binary is intentional for this version; the return in
+`_evaluate_numeric` is where proportional credit would attach.
 
-## Designed seams (built for, not yet built)
+## Transactions and error handling
 
-These are visible in the schema today so the next phase is additive, not a
-rewrite:
+`database.session_scope()` commits on clean exit and rolls back on any
+exception. The runner wraps the post-ingestion stages; on failure it writes a
+`PIPELINE_ERROR` audit entry and re-raises. LLM calls
+(`llm.py`) retry with exponential backoff and raise `LLMError` after the retry
+budget; the classification and extraction parsers degrade to safe defaults on
+malformed output rather than propagating.
 
-- **Multi-source conflict detection.** Facts carry
-  `(deal_id, entity_id, claim_type, normalized_value_numeric,
-  normalized_value_unit)` and a supporting composite index
-  (`ix_facts_conflict_key`). A second document asserting the same
-  `(entity, claim_type)` with a different **normalized** value is surfaced by a
-  single `GROUP BY … HAVING COUNT(DISTINCT …) > 1` query. We do **not** build
-  resolution logic — but the schema makes exactly where it hooks in obvious, and
-  the normalization layer is the precondition that makes the query correct.
-- **Document re-processing.** `document_version` on every fact lets a corrected
-  document be re-extracted without orphaning prior facts.
-- **Entity linking across documents.** The canonical entities table and its
-  `aliases` list already accumulate variants.
-- **Analyst overrides.** `ExtractionMethod.MANUAL_OVERRIDE` and the audit chain
-  reserve the path.
+## Immutable score snapshots
 
-## Immutable scoring snapshots (a deliberate decision)
+`CriterionScore`/`FactContribution` copy `source_page` and `source_excerpt` at
+scoring time. A later correction to a fact's excerpt does not alter historical
+scores; a score reflects the evidence as of when it was produced. Current data
+remains reachable via `fact_id`. This is a deliberate denormalization for
+auditability, not an accident.
 
-`CriterionScore`/`FactContribution` embed `source_page` and `source_excerpt`
-**at scoring time**. If a fact's excerpt is later corrected, historical scores
-intentionally retain the original wording. This is **by design**: a score is an
-immutable record of what was known when the decision was made — exactly what an
-audit demands. It is stated auditability, not denormalization debt. Live,
-corrected data is always reachable via `fact_id`.
+## Extension points
 
-## Out of scope (explicitly, for the next phase)
+The schema is shaped so the following are additive:
 
-- Third-party API integrations (PitchBook, SEC, Crunchbase)
-- Multi-document cross-referencing / conflict **resolution** logic
-- LangGraph / agent orchestration
-- Authentication, multi-tenancy, deployment configuration
+- **Conflict detection.** Two documents asserting the same
+  `(entity_id, claim_type)` with different normalized values are found by
+  `GROUP BY entity_id, claim_type HAVING COUNT(DISTINCT normalized_value_numeric,
+  normalized_value_unit) > 1`, supported by `ix_facts_conflict_key`. Resolution
+  logic is not implemented.
+- **Re-processing.** `document_version` on `Fact` allows re-extraction without
+  orphaning prior facts.
+- **Cross-document entity linking.** `canonical_entities.aliases` already
+  accumulates variants; the resolver interface is stable.
+- **Analyst overrides.** `ExtractionMethod.MANUAL_OVERRIDE` plus the
+  `parent_event_id`/`root_event_id` audit chain reserve the path; a full override
+  chain is retrievable in one indexed query on `root_event_id`.
+
+## Known limitations
+
+- Extraction quality on real fund documents depends on prompt/model behavior;
+  fund-level vs deal-level metric tagging (`claim_subtype_raw`) is model-driven
+  and not guaranteed. Scoring fails closed when scope is ambiguous.
+- Entity resolution is exact-key within a deal; no fuzzy matching.
+- Retrieval ranking is keyword/claim-type based, not semantic.
+- Cost figures are estimates from static per-token rates in `config.py`.
