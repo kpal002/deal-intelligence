@@ -93,6 +93,9 @@ class ParsedPage(BaseModel):
             future OCR pass knows where to look).
         extraction_warnings: Non-fatal issues encountered while parsing this
             page (e.g. a table with ragged rows). Surfaced for the audit log.
+        words: Per-word geometry from pdfplumber, each a dict with ``text`` and
+            PDF-point bounds ``x0``/``x1``/``top``/``bottom``. Used to map a
+            located excerpt to bounding-box rectangles for on-page highlighting.
     """
 
     deal_id: uuid.UUID
@@ -101,6 +104,7 @@ class ParsedPage(BaseModel):
     tables: list[list[list[str | None]]] = Field(default_factory=list)
     has_images: bool = False
     extraction_warnings: list[str] = Field(default_factory=list)
+    words: list[dict] = Field(default_factory=list)
 
 
 class DocumentChunk(BaseModel):

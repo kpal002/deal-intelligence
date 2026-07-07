@@ -48,6 +48,8 @@ class FactCitation(BaseModel):
         source_char_end: End offset (exclusive) of the located span, or None.
         span_verification: Whether the excerpt was located in the source
             (``verified_exact`` / ``verified_fuzzy`` / ``unverified``).
+        source_bbox: Line-level bounding boxes on the page for highlighting, or
+            None.
         relevance: Query-match score (higher is more relevant).
     """
 
@@ -62,6 +64,7 @@ class FactCitation(BaseModel):
     source_char_start: int | None
     source_char_end: int | None
     span_verification: str
+    source_bbox: list[dict] | None
     relevance: float
 
 
@@ -179,6 +182,7 @@ def query_facts(
             source_char_start=fact.source_char_start,
             source_char_end=fact.source_char_end,
             span_verification=fact.span_verification.value,
+            source_bbox=fact.source_bbox,
             relevance=relevance,
         )
         for relevance, fact in scored[:limit]

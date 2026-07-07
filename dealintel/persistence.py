@@ -122,6 +122,7 @@ def save_facts(session: Session, facts: list[Fact]) -> None:
                 source_char_start=fact.source_char_start,
                 source_char_end=fact.source_char_end,
                 span_verification=fact.span_verification.value,
+                source_bbox=fact.source_bbox,
                 extraction_method=fact.extraction_method.value,
                 confidence_score=fact.confidence_score,
                 document_version=fact.document_version,

@@ -62,6 +62,7 @@ normalization_status  NORMALIZED | UNPARSEABLE | NOT_APPLICABLE
 source_page, source_excerpt   citation (excerpt validated non-empty)
 source_char_start / _end      excerpt offsets in the source page text
 span_verification             VERIFIED_EXACT | VERIFIED_FUZZY | UNVERIFIED
+source_bbox                   line-level page rectangles for highlighting (or null)
 confidence_score, extraction_method, document_version, extracted_at
 ```
 
@@ -110,8 +111,16 @@ a status. Exact substring match (`str.find`) gives `VERIFIED_EXACT`; otherwise
 above the threshold it is `VERIFIED_FUZZY`, else `UNVERIFIED` with null offsets.
 The excerpt is not treated as source-grounded unless a span is found. Offsets
 index into `parse_pdf(...)[source_page-1].raw_text`, reproducible from the
-retained PDF bytes. rapidfuzz (MIT) is the only dependency; pixel/bounding-box
-coordinates would need a PDF geometry library and are out of scope.
+retained PDF bytes. rapidfuzz (MIT) is the only dependency for this step.
+
+**Bounding boxes** (`geometry.py`) map the located excerpt to on-page rectangles
+for highlighting. The parser retains per-word geometry (`x0/x1/top/bottom` from
+pdfplumber's `extract_words`); `locate_bboxes` finds the contiguous run of page
+words best matching the excerpt's tokens and unions their boxes per line,
+yielding one `{x0, top, x1, bottom}` rectangle per line (PDF points, top-left
+origin) on `Fact.source_bbox`. This reuses pdfplumber (no new dependency, no
+license change). Pixel-perfect quads (e.g. PyMuPDF, which is AGPL) are a
+deliberate separate choice, not adopted here.
 
 **Entity resolution** (`pipeline/entity_resolution.py`) canonicalizes names
 within a deal by a match key (lowercased, punctuation and common corporate

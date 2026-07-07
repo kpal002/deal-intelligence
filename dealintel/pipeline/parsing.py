@@ -58,6 +58,23 @@ def parse_pdf(pdf_path: str, deal_id: uuid.UUID) -> list[ParsedPage]:
                 warnings.append(f"table extraction failed: {exc}")
                 logger.warning("Page %d table extraction failed: %s", index, exc)
 
+            words: list[dict] = []
+            try:
+                # Keep only text + bounds; drop the heavier per-word metadata.
+                words = [
+                    {
+                        "text": w["text"],
+                        "x0": round(w["x0"], 2),
+                        "x1": round(w["x1"], 2),
+                        "top": round(w["top"], 2),
+                        "bottom": round(w["bottom"], 2),
+                    }
+                    for w in page.extract_words()
+                ]
+            except Exception as exc:
+                warnings.append(f"word geometry extraction failed: {exc}")
+                logger.warning("Page %d word extraction failed: %s", index, exc)
+
             has_images = bool(getattr(page, "images", []))
             pages.append(
                 ParsedPage(
@@ -67,6 +84,7 @@ def parse_pdf(pdf_path: str, deal_id: uuid.UUID) -> list[ParsedPage]:
                     tables=tables,
                     has_images=has_images,
                     extraction_warnings=warnings,
+                    words=words,
                 )
             )
 

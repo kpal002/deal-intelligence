@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from dealintel import persistence
+from dealintel.geometry import locate_bboxes
 from dealintel.llm import LLMClient
 from dealintel.models.audit import AuditEventType
 from dealintel.models.document import DocumentChunk
@@ -140,6 +141,10 @@ def run_pipeline(
                 estimated_cost_usd=result.estimated_cost_usd,
             )
 
+        # Enrich verified facts with page bounding boxes for highlighting.
+        page_words = {p.page_number: p.words for p in pages}
+        all_facts = [_with_bbox(f, page_words) for f in all_facts]
+
         entities = resolver.all_entities()
         persistence.save_entities(session, entities)
         persistence.save_facts(session, all_facts)
@@ -169,6 +174,24 @@ def run_pipeline(
         entity_count=len(entities),
         estimated_cost_usd=total_cost,
     )
+
+
+def _with_bbox(fact: Fact, page_words: dict[int, list[dict]]) -> Fact:
+    """Attach page bounding boxes to a fact from its source page's words.
+
+    Args:
+        fact: The extracted fact.
+        page_words: Page number -> per-word geometry.
+
+    Returns:
+        A copy of ``fact`` with ``source_bbox`` set to the located rectangles,
+        or the fact unchanged when no words are available or nothing matches.
+    """
+    words = page_words.get(fact.source_page)
+    if not words:
+        return fact
+    rects = locate_bboxes(fact.source_excerpt, words)
+    return fact.model_copy(update={"source_bbox": rects or None})
 
 
 def _extractable(chunks: list[DocumentChunk]) -> list[DocumentChunk]:

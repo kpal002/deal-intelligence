@@ -153,6 +153,7 @@ class FactORM(Base):
     source_char_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_char_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     span_verification: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_bbox: Mapped[list | None] = mapped_column(JSON_COL, nullable=True)
     extraction_method: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
     document_version: Mapped[int] = mapped_column(Integer, default=1)

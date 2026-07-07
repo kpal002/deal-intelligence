@@ -115,7 +115,9 @@ query: "what is the ARR and team size"
 `span_verification` is `verified_exact`, `verified_fuzzy` (excerpt located by
 approximate alignment when the model reworded whitespace/quotes), or
 `unverified` (excerpt not found — the fact is retained but not treated as
-source-grounded). Offsets index into the parsed text of `source_page`.
+source-grounded). Offsets index into the parsed text of `source_page`. Facts
+also carry `source_bbox`: line-level page rectangles (`x0/top/x1/bottom`, PDF
+points) for highlighting the cited text in a viewer.
 
 Real document (live Claude on a 30-page PE secondaries PPM, secondaries
 mandate): 281 facts, 46 entities, ~$0.81. Note the bundled `sample_ppm.pdf` is a

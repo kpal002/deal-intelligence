@@ -186,6 +186,14 @@ class Fact(BaseModel):
         description="End offset (exclusive) of the located excerpt span.",
     )
     span_verification: SpanVerification = SpanVerification.UNVERIFIED
+    source_bbox: list[dict] | None = Field(
+        default=None,
+        description=(
+            "Line-level bounding boxes locating the excerpt on the page, each "
+            "``{x0, top, x1, bottom}`` in PDF points (top-left origin). Null when "
+            "the excerpt could not be located geometrically."
+        ),
+    )
     extraction_method: ExtractionMethod
     confidence_score: float = Field(ge=0.0, le=1.0)
     document_version: int = Field(default=1)
