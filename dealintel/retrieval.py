@@ -44,6 +44,10 @@ class FactCitation(BaseModel):
         confidence_score: Extraction confidence.
         source_page: Citation page.
         source_excerpt: Verbatim supporting text.
+        source_char_start: Start offset of the excerpt in the page text, or None.
+        source_char_end: End offset (exclusive) of the located span, or None.
+        span_verification: Whether the excerpt was located in the source
+            (``verified_exact`` / ``verified_fuzzy`` / ``unverified``).
         relevance: Query-match score (higher is more relevant).
     """
 
@@ -55,6 +59,9 @@ class FactCitation(BaseModel):
     confidence_score: float
     source_page: int
     source_excerpt: str
+    source_char_start: int | None
+    source_char_end: int | None
+    span_verification: str
     relevance: float
 
 
@@ -169,6 +176,9 @@ def query_facts(
             confidence_score=fact.confidence_score,
             source_page=fact.source_page,
             source_excerpt=fact.source_excerpt,
+            source_char_start=fact.source_char_start,
+            source_char_end=fact.source_char_end,
+            span_verification=fact.span_verification.value,
             relevance=relevance,
         )
         for relevance, fact in scored[:limit]

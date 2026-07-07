@@ -11,6 +11,9 @@ psycopg[binary]>=3.1
 # PDF parsing with page/table preservation
 pdfplumber>=0.11
 
+# Span verification: locate excerpts at char offsets in the source text
+rapidfuzz>=3.9
+
 # Mandate config + local .env loading
 PyYAML>=6.0
 python-dotenv>=1.0

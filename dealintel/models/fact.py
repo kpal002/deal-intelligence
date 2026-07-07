@@ -80,6 +80,28 @@ class NormalizationStatus(str, Enum):
     NOT_APPLICABLE = "not_applicable"
 
 
+class SpanVerification(str, Enum):
+    """Whether a fact's excerpt was located at char offsets in the source text.
+
+    A fact is only trusted as grounded if its ``source_excerpt`` can be found in
+    the parsed text of ``source_page``. The located span is stored as
+    ``source_char_start`` / ``source_char_end`` (offsets into that page's text).
+
+    Attributes:
+        VERIFIED_EXACT: The excerpt was found as an exact substring; the span is
+            byte-for-byte the excerpt.
+        VERIFIED_FUZZY: The excerpt was located by approximate alignment (the
+            model normalized whitespace/quotes); the span covers the matched
+            region and the alignment score met the threshold.
+        UNVERIFIED: The excerpt could not be located; offsets are null. The fact
+            is retained but must not be treated as source-grounded.
+    """
+
+    VERIFIED_EXACT = "verified_exact"
+    VERIFIED_FUZZY = "verified_fuzzy"
+    UNVERIFIED = "unverified"
+
+
 class ExtractionMethod(str, Enum):
     """Which pass produced a fact — important for cost tracking and provenance."""
 
@@ -151,6 +173,19 @@ class Fact(BaseModel):
         description="Verbatim excerpt (<=500 chars) from source document",
         max_length=500,
     )
+    source_char_start: int | None = Field(
+        default=None,
+        description=(
+            "Start offset of the excerpt within the parsed text of "
+            "``source_page`` (``parse_pdf(...)[source_page-1].raw_text``). Null "
+            "when the excerpt could not be located."
+        ),
+    )
+    source_char_end: int | None = Field(
+        default=None,
+        description="End offset (exclusive) of the located excerpt span.",
+    )
+    span_verification: SpanVerification = SpanVerification.UNVERIFIED
     extraction_method: ExtractionMethod
     confidence_score: float = Field(ge=0.0, le=1.0)
     document_version: int = Field(default=1)

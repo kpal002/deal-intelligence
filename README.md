@@ -101,15 +101,21 @@ knockout:         False
   [  ] US-based           met=True  'united states' found in a matching fact.
 ```
 
-A query returns ranked facts with page + verbatim excerpt citations:
+A query returns ranked facts with page + verbatim excerpt citations, each
+located at char offsets in the source page (span verification):
 
 ```
 query: "what is the ARR and team size"
-  p2 | revenue         | $4.2M -> 4200000.0 USD
+  p2 | revenue         | $4.2M -> 4200000.0 USD   [verified_exact chars 245-309]
        "The business reached an ARR of $4.2M in the most recent quarter."
-  p7 | team_background | 14 -> 14 count
+  p7 | team_background | 14 -> 14 count           [verified_exact chars 5-97]
        "NorthStar Logistics is run by a team of 14 across engineering, ..."
 ```
+
+`span_verification` is `verified_exact`, `verified_fuzzy` (excerpt located by
+approximate alignment when the model reworded whitespace/quotes), or
+`unverified` (excerpt not found — the fact is retained but not treated as
+source-grounded). Offsets index into the parsed text of `source_page`.
 
 Real document (live Claude on a 30-page PE secondaries PPM, secondaries
 mandate): 281 facts, 46 entities, ~$0.81. Note the bundled `sample_ppm.pdf` is a

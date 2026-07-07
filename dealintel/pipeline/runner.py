@@ -118,10 +118,13 @@ def run_pipeline(
         persistence.save_chunks(session, chunks)
 
         # --- Extract (Sonnet) + resolve entities --------------------------
+        # Page text keyed by page number, so each excerpt can be located at
+        # char offsets in its source page (span verification).
+        page_texts = {p.page_number: p.raw_text for p in pages}
         resolver = EntityResolver(doc.deal_id)
         all_facts: list[Fact] = []
         for chunk in _extractable(chunks):
-            facts, result = extract_facts(client, chunk, resolver)
+            facts, result = extract_facts(client, chunk, resolver, page_texts)
             all_facts.extend(facts)
             total_cost += result.estimated_cost_usd
             record_event(

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Mapping
 from typing import Protocol
 
 from pydantic import ValidationError
@@ -20,6 +21,7 @@ from dealintel.llm import LLMClient, LLMResult
 from dealintel.models.document import DocumentChunk
 from dealintel.models.fact import ClaimType, ExtractionMethod, Fact
 from dealintel.normalize import normalize_claim_value
+from dealintel.verification import verify_span
 
 logger = logging.getLogger(__name__)
 
@@ -65,14 +67,18 @@ def extract_facts(
     client: LLMClient,
     chunk: DocumentChunk,
     entity_resolver: EntityResolverProtocol,
+    page_texts: Mapping[int, str] | None = None,
 ) -> tuple[list[Fact], LLMResult]:
-    """Extract validated, normalized facts from one chunk via the Sonnet tier.
+    """Extract validated, normalized, span-verified facts from one chunk.
 
     Args:
         client: The tiered LLM client.
         chunk: The (already classified) chunk to extract from.
         entity_resolver: Callable resolving a raw entity name to a canonical
             ``entity_id`` (see :mod:`dealintel.pipeline.entity_resolution`).
+        page_texts: Map of page number -> parsed page text, used to locate each
+            excerpt at char offsets. When omitted, facts are left
+            ``UNVERIFIED`` (offsets null).
 
     Returns:
         A ``(facts, llm_result)`` tuple. Malformed individual records are
@@ -80,7 +86,7 @@ def extract_facts(
         :class:`LLMResult` is returned for audit logging.
     """
     result = client.extract(_SYSTEM_PROMPT, chunk.content)
-    facts = _parse_facts(result.text, chunk, entity_resolver)
+    facts = _parse_facts(result.text, chunk, entity_resolver, page_texts or {})
     return facts, result
 
 
@@ -88,6 +94,7 @@ def _parse_facts(
     raw_text: str,
     chunk: DocumentChunk,
     entity_resolver: EntityResolverProtocol,
+    page_texts: Mapping[int, str],
 ) -> list[Fact]:
     """Parse the extractor's JSON array into validated Fact objects.
 
@@ -95,6 +102,7 @@ def _parse_facts(
         raw_text: Raw model output, expected to be a JSON array.
         chunk: Source chunk (supplies deal_id, chunk_id, and the citation page).
         entity_resolver: Raw-name -> canonical entity_id resolver.
+        page_texts: Page number -> parsed page text, for span verification.
 
     Returns:
         Validated, normalized facts. Records that fail validation are skipped.
@@ -111,7 +119,7 @@ def _parse_facts(
     source_page = chunk.source_pages[0] if chunk.source_pages else 1
     facts: list[Fact] = []
     for record in records:
-        fact = _build_fact(record, chunk, source_page, entity_resolver)
+        fact = _build_fact(record, chunk, source_page, entity_resolver, page_texts)
         if fact is not None:
             facts.append(fact)
     logger.info("Extracted %d fact(s) from chunk %s", len(facts), chunk.chunk_index)
@@ -123,14 +131,16 @@ def _build_fact(
     chunk: DocumentChunk,
     source_page: int,
     entity_resolver: EntityResolverProtocol,
+    page_texts: Mapping[int, str],
 ) -> Fact | None:
-    """Build one validated, normalized Fact from a raw extractor record.
+    """Build one validated, normalized, span-verified Fact from a raw record.
 
     Args:
         record: A single JSON object from the extractor.
         chunk: Source chunk.
         source_page: Citation page for this chunk.
         entity_resolver: Raw-name -> canonical entity_id resolver.
+        page_texts: Page number -> parsed page text, for span verification.
 
     Returns:
         A validated :class:`Fact`, or ``None`` if the record is malformed.
@@ -149,6 +159,11 @@ def _build_fact(
 
         normalized = normalize_claim_value(raw_value, claim_type)
         entity_id = entity_resolver(entity_raw, claim_type)
+        excerpt = str(record.get("source_excerpt", "")).strip()[:500]
+        # Locate the excerpt in the source page's text -> char span + status.
+        char_start, char_end, span_status = verify_span(
+            excerpt, page_texts.get(source_page, "")
+        )
 
         return Fact(
             deal_id=chunk.deal_id,
@@ -163,7 +178,10 @@ def _build_fact(
             normalized_value_text=normalized.text,
             normalization_status=normalized.status,
             source_page=source_page,
-            source_excerpt=str(record.get("source_excerpt", "")).strip()[:500],
+            source_excerpt=excerpt,
+            source_char_start=char_start,
+            source_char_end=char_end,
+            span_verification=span_status,
             extraction_method=ExtractionMethod.SONNET_EXTRACTION,
             confidence_score=_coerce_confidence(record.get("confidence")),
         )

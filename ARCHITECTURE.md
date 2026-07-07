@@ -60,6 +60,8 @@ claim_value           verbatim string, never mutated
 normalized_value_numeric / _unit / _text
 normalization_status  NORMALIZED | UNPARSEABLE | NOT_APPLICABLE
 source_page, source_excerpt   citation (excerpt validated non-empty)
+source_char_start / _end      excerpt offsets in the source page text
+span_verification             VERIFIED_EXACT | VERIFIED_FUZZY | UNVERIFIED
 confidence_score, extraction_method, document_version, extracted_at
 ```
 
@@ -100,6 +102,16 @@ claims. Each record is parsed defensively: a malformed element is skipped with a
 warning, not fatal. For each valid record the stage normalizes the value,
 resolves the entity, and constructs a validated `Fact`. Non-JSON output yields
 zero facts for that chunk.
+
+**Span verification** (`verification.py`) locates each fact's `source_excerpt`
+in the parsed text of its page and records the `[start, end)` char offsets plus
+a status. Exact substring match (`str.find`) gives `VERIFIED_EXACT`; otherwise
+`rapidfuzz.fuzz.partial_ratio_alignment` returns the matched span and a score —
+above the threshold it is `VERIFIED_FUZZY`, else `UNVERIFIED` with null offsets.
+The excerpt is not treated as source-grounded unless a span is found. Offsets
+index into `parse_pdf(...)[source_page-1].raw_text`, reproducible from the
+retained PDF bytes. rapidfuzz (MIT) is the only dependency; pixel/bounding-box
+coordinates would need a PDF geometry library and are out of scope.
 
 **Entity resolution** (`pipeline/entity_resolution.py`) canonicalizes names
 within a deal by a match key (lowercased, punctuation and common corporate

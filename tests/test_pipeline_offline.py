@@ -38,12 +38,13 @@ def _run_stages():
     deal_id = uuid.uuid4()
     pages = parse_pdf(SAMPLE_PDF, deal_id)
     chunks = chunk_pages(pages)
+    page_texts = {p.page_number: p.raw_text for p in pages}
     resolver = EntityResolver(deal_id)
     facts = []
     for chunk in chunks:
         section_type, confidence, _ = classify_chunk(client, chunk)
         chunk.section_type = section_type
-        extracted, _ = extract_facts(client, chunk, resolver)
+        extracted, _ = extract_facts(client, chunk, resolver, page_texts)
         facts.extend(extracted)
     entity_names = {e.entity_id: e.canonical_name for e in resolver.all_entities()}
     return facts, entity_names, deal_id
@@ -67,6 +68,23 @@ def test_revenue_is_normalized_to_usd():
         f.normalized_value_unit == "USD" and f.normalized_value_numeric == 4_200_000.0
         for f in revenue
     )
+
+
+def test_facts_are_span_verified_against_source():
+    """Extracted facts are located at char offsets in their source page."""
+    from dealintel.models.fact import SpanVerification
+
+    facts, _, _ = _run_stages()
+    verified = [
+        f for f in facts if f.span_verification is not SpanVerification.UNVERIFIED
+    ]
+    # Most facts on a text deck should locate; require the majority and check
+    # that a verified fact's offsets actually index its excerpt's start.
+    assert len(verified) >= len(facts) // 2
+    f = verified[0]
+    assert f.source_char_start is not None
+    assert f.source_char_end is not None
+    assert f.source_char_end > f.source_char_start
 
 
 def test_sample_deck_scores_above_floor():

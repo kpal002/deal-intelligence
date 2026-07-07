@@ -18,6 +18,7 @@ from dealintel.models.fact import (
     ExtractionMethod,
     Fact,
     NormalizationStatus,
+    SpanVerification,
 )
 from dealintel.models.mandate import Mandate, MandateCriterion, MandateOperator
 from dealintel.models.scoring import CriterionScore, FactContribution, ScoreResult
@@ -40,4 +41,5 @@ __all__ = [
     "RawDocument",
     "ScoreResult",
     "SectionType",
+    "SpanVerification",
 ]
