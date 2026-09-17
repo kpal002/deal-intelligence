@@ -205,6 +205,19 @@ def test_no_scale_hint_leaves_value_unscaled():
     assert result.numeric == pytest.approx(365_000.0)
 
 
+def test_negative_currency_is_flagged_suspect():
+    """A negative currency figure is flagged (likely a cash-flow-delta misread)."""
+    result = normalize_currency("-6.7")
+    assert result.numeric == pytest.approx(-6.7)
+    assert result.suspect_sign is True
+
+
+def test_positive_currency_is_not_suspect():
+    """A normal positive figure is not flagged."""
+    result = normalize_currency("$4.2M")
+    assert result.suspect_sign is False
+
+
 # --- Dispatcher routing ---------------------------------------------------
 
 

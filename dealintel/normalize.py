@@ -105,12 +105,18 @@ class NormalizedValue(BaseModel):
             ``"count"``), or ``None``.
         text: Canonical lowercased form for categorical values, or ``None``.
         status: Whether normalization succeeded, failed, or was not applicable.
+        suspect_sign: True when a currency figure parsed as negative. A reported
+            balance-sheet or income level is not normally negative; a negative
+            value usually means a cash-flow *change* was misread as a level (the
+            classic ``-6.7`` accounts-receivable / ``-122`` operating-cash-flow
+            error). Flagged so downstream can distrust it rather than accept it.
     """
 
     numeric: float | None = None
     unit: str | None = None
     text: str | None = None
     status: NormalizationStatus = NormalizationStatus.NOT_APPLICABLE
+    suspect_sign: bool = False
 
 
 # --- Low-level parsing helpers -------------------------------------------
@@ -246,10 +252,12 @@ def normalize_currency(raw: str, scale_hint: float | None = None) -> NormalizedV
     inline_multiplier = _multiplier_for(rest)
     # Inline scale (k/m/b) wins; otherwise apply the document scale if given.
     effective = inline_multiplier if inline_multiplier != 1.0 else (scale_hint or 1.0)
+    value = number * effective
     return NormalizedValue(
-        numeric=number * effective,
+        numeric=value,
         unit=unit,
         status=NormalizationStatus.NORMALIZED,
+        suspect_sign=value < 0,
     )
 
 

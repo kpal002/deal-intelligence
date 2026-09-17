@@ -161,6 +161,17 @@ def _build_fact(
         # the page, so a value like "365,000" resolves to $365B, not $365K.
         scale_hint = detect_scale(page_texts.get(source_page, ""))
         normalized = normalize_claim_value(raw_value, claim_type, scale_hint=scale_hint)
+        if normalized.suspect_sign:
+            # A negative "level" (e.g. a balance-sheet or income figure) usually
+            # means a cash-flow delta was misread; surface it for review.
+            logger.warning(
+                "Suspect negative value for %s on p%d: %r (%s) — possible "
+                "cash-flow-delta misread",
+                claim_type.value,
+                source_page,
+                raw_value,
+                normalized.numeric,
+            )
         entity_id = entity_resolver(entity_raw, claim_type)
         excerpt = str(record.get("source_excerpt", "")).strip()[:500]
         # Locate the excerpt in the source page's text -> char span + status.
