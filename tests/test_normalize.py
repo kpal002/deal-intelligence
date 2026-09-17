@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from dealintel.models.fact import ClaimType, NormalizationStatus
 from dealintel.normalize import (
+    detect_scale,
     normalize_claim_value,
     normalize_count,
     normalize_currency,
@@ -166,6 +167,42 @@ def test_dispatch_vintage_year_routes_to_year():
     result = normalize_claim_value("2018", ClaimType.VINTAGE_YEAR)
     assert result.unit == "year"
     assert result.numeric == pytest.approx(2018.0)
+
+
+# --- Document scale ("in millions") ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("CONSOLIDATED BALANCE SHEETS (In millions)", 1e6),
+        ("Amounts in thousands except per share data", 1e3),
+        ("$ in billions", 1e9),
+        ("Fiscal year 2025 results", None),
+    ],
+)
+def test_detect_scale(text, expected):
+    """A statement's declared scale phrase maps to its multiplier."""
+    assert detect_scale(text) == expected
+
+
+def test_scale_hint_rescues_bare_statement_figure():
+    """A bare '365,000' under '(in millions)' resolves to $365B, not $365K."""
+    result = normalize_claim_value("365,000", ClaimType.FUND_SIZE, scale_hint=1e6)
+    assert result.numeric == pytest.approx(365_000_000_000.0)
+    assert result.unit == "USD"
+
+
+def test_scale_hint_does_not_double_apply_inline_scale():
+    """An inline scale ('$5M') wins; the document scale is not applied on top."""
+    result = normalize_claim_value("$5M", ClaimType.REVENUE, scale_hint=1e6)
+    assert result.numeric == pytest.approx(5_000_000.0)
+
+
+def test_no_scale_hint_leaves_value_unscaled():
+    """Without a scale hint, a bare figure is taken at face value."""
+    result = normalize_claim_value("365,000", ClaimType.FUND_SIZE)
+    assert result.numeric == pytest.approx(365_000.0)
 
 
 # --- Dispatcher routing ---------------------------------------------------

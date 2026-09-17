@@ -20,7 +20,7 @@ from pydantic import ValidationError
 from dealintel.llm import LLMClient, LLMResult
 from dealintel.models.document import DocumentChunk
 from dealintel.models.fact import ClaimType, ExtractionMethod, Fact
-from dealintel.normalize import normalize_claim_value
+from dealintel.normalize import detect_scale, normalize_claim_value
 from dealintel.verification import verify_span
 
 logger = logging.getLogger(__name__)
@@ -157,7 +157,10 @@ def _build_fact(
         if claim_type is ClaimType.OTHER and not (subtype and str(subtype).strip()):
             subtype = f"unmapped: {raw_value[:60]}" if raw_value else "unmapped claim"
 
-        normalized = normalize_claim_value(raw_value, claim_type)
+        # A statement-level scale ("(in millions)") applies to bare figures on
+        # the page, so a value like "365,000" resolves to $365B, not $365K.
+        scale_hint = detect_scale(page_texts.get(source_page, ""))
+        normalized = normalize_claim_value(raw_value, claim_type, scale_hint=scale_hint)
         entity_id = entity_resolver(entity_raw, claim_type)
         excerpt = str(record.get("source_excerpt", "")).strip()[:500]
         # Locate the excerpt in the source page's text -> char span + status.

@@ -178,7 +178,40 @@ def _detect_currency_unit(raw: str) -> str | None:
 # --- Per-kind normalizers -------------------------------------------------
 
 
-def normalize_currency(raw: str) -> NormalizedValue:
+#: Document-scale phrases (e.g. a statement headed "(in millions)") mapped to
+#: their multiplier. Matched case-insensitively against surrounding text.
+_SCALE_PHRASES: dict[str, float] = {
+    "thousand": 1e3,
+    "million": 1e6,
+    "billion": 1e9,
+}
+
+_SCALE_RE = re.compile(r"in\s+(thousands|millions|billions)", re.IGNORECASE)
+
+
+def detect_scale(text: str) -> float | None:
+    """Detect a document-declared numeric scale from surrounding text.
+
+    Financial statements commonly declare a scale once in a header — e.g.
+    "CONSOLIDATED BALANCE SHEETS (In millions)" — and then present bare figures.
+    This returns the implied multiplier so those figures can be normalized to
+    absolute values.
+
+    Args:
+        text: Text near the figure (e.g. the page or section text).
+
+    Returns:
+        The multiplier (``1e3`` / ``1e6`` / ``1e9``), or ``None`` if no scale
+        phrase is present.
+    """
+    match = _SCALE_RE.search(text)
+    if match is None:
+        return None
+    # "thousands" -> "thousand", etc.
+    return _SCALE_PHRASES[match.group(1).lower().rstrip("s")]
+
+
+def normalize_currency(raw: str, scale_hint: float | None = None) -> NormalizedValue:
     """Normalize a currency amount to an absolute numeric value plus unit.
 
     Handles symbols ($, €, £), codes (USD, EUR, ...), thousands separators, and
@@ -186,14 +219,21 @@ def normalize_currency(raw: str) -> NormalizedValue:
     is present the unit defaults to ``"USD"`` (this helper is only invoked once
     the value is known to be monetary).
 
+    ``scale_hint`` carries a document-declared scale (e.g. a financial statement
+    headed "(in millions)" -> ``1e6``). It is applied ONLY when the value has no
+    inline scale of its own — a bare ``365,000`` under "(in millions)" is
+    ``3.65e11``, while ``"$5M"`` keeps its inline ``M`` and is not re-scaled.
+    This is the fix for statement figures that otherwise lose their magnitude
+    (``365,000`` misread as ``$365K`` instead of ``$365B``).
+
     Examples:
         ``"$5M"`` -> ``5_000_000.0 USD``
-        ``"$5,000,000"`` -> ``5_000_000.0 USD``
-        ``"5 million USD"`` -> ``5_000_000.0 USD``
-        ``"€1.2B"`` -> ``1_200_000_000.0 EUR``
+        ``"365,000"`` with ``scale_hint=1e6`` -> ``365_000_000_000.0 USD``
+        ``"$5M"`` with ``scale_hint=1e6`` -> ``5_000_000.0 USD`` (inline wins)
 
     Args:
         raw: The original currency value text.
+        scale_hint: Document-declared scale multiplier, or ``None``.
 
     Returns:
         A :class:`NormalizedValue`. ``UNPARSEABLE`` (with null numeric) if no
@@ -203,9 +243,13 @@ def normalize_currency(raw: str) -> NormalizedValue:
     if number is None:
         return NormalizedValue(status=NormalizationStatus.UNPARSEABLE)
     unit = _detect_currency_unit(raw) or "USD"
-    value = number * _multiplier_for(rest)
+    inline_multiplier = _multiplier_for(rest)
+    # Inline scale (k/m/b) wins; otherwise apply the document scale if given.
+    effective = inline_multiplier if inline_multiplier != 1.0 else (scale_hint or 1.0)
     return NormalizedValue(
-        numeric=value, unit=unit, status=NormalizationStatus.NORMALIZED
+        numeric=number * effective,
+        unit=unit,
+        status=NormalizationStatus.NORMALIZED,
     )
 
 
@@ -336,7 +380,11 @@ def _canonical_text(raw: str) -> str:
 # --- Dispatcher -----------------------------------------------------------
 
 
-def normalize_claim_value(raw_value: str, claim_type: ClaimType) -> NormalizedValue:
+def normalize_claim_value(
+    raw_value: str,
+    claim_type: ClaimType,
+    scale_hint: float | None = None,
+) -> NormalizedValue:
     """Normalize a raw claim value into its comparable form.
 
     Routing logic, in order of precedence:
@@ -359,6 +407,9 @@ def normalize_claim_value(raw_value: str, claim_type: ClaimType) -> NormalizedVa
     Args:
         raw_value: The verbatim value string from extraction.
         claim_type: The claim's ontology type, used to bias routing.
+        scale_hint: Document-declared scale multiplier (from
+            :func:`detect_scale`) applied to currency figures lacking an inline
+            scale — e.g. a balance-sheet figure under "(in millions)".
 
     Returns:
         A :class:`NormalizedValue`. Numeric claims that cannot be parsed return
@@ -383,7 +434,7 @@ def normalize_claim_value(raw_value: str, claim_type: ClaimType) -> NormalizedVa
         return normalize_percentage(raw_value)
 
     if claim_type in _CURRENCY_CLAIM_TYPES or _detect_currency_unit(raw_value):
-        return normalize_currency(raw_value)
+        return normalize_currency(raw_value, scale_hint=scale_hint)
 
     number, _ = _find_number_and_rest(raw_value)
     if number is not None:
